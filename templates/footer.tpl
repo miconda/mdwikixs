@@ -1,6 +1,6 @@
 {{define "footer"}}
 <div class="row col-md-9">
-  {{ if .Revision}}
+  {{if .Revision}}
     <hr class="text-muted" />
     <p class="text-muted">Revision: {{.Revision}}</p>
   {{end}}

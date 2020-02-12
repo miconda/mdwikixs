@@ -1,8 +1,8 @@
-{{ template "header" . }}
+{{template "header" .}}
 <div class="row col-md-9">
 <form method="POST">
  <div class="form-group col-md-12">
-  <textarea type="text" class="form-control" rows="15" placeholder="Insert markdown here" name="content">{{ .Content }}</textarea>
+  <textarea type="text" class="form-control" rows="15" placeholder="Insert markdown here" name="content">{{.Content}}</textarea>
  </div>
  <div class="form-inline col-md-12">
   <div class="form-group col-md-8">
@@ -19,4 +19,4 @@
  </div>
 </form>
 </div>
-{{ template "footer" . }}
+{{template "footer" .}}

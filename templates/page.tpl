@@ -1,5 +1,5 @@
 {{define "page"}}
 <div class="row col-md-9">
- {{ .Markdown }}
+ {{.Markdown}}
 </div>
 {{end}}

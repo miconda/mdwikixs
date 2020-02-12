@@ -1,4 +1,4 @@
-{{ define "actions" }}
+{{define "actions"}}
 <div class="row col-md-9">
  <form method="POST">
   <div class="form-group">
