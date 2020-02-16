@@ -314,6 +314,35 @@ func init() {
 	flag.BoolVar(&cliops.version, "version", cliops.version, "print version")
 }
 
+func startHTTPServices() chan error {
+
+	errchan := make(chan error)
+
+	// starting HTTP server
+	if len(cliops.httpsrv) > 0 {
+		go func() {
+			log.Printf("staring HTTP service on: %s ...", cliops.httpsrv)
+
+			if err := http.ListenAndServe(cliops.httpsrv, nil); err != nil {
+				errchan <- err
+			}
+
+		}()
+	}
+
+	// starting HTTPS server
+	if len(cliops.httpssrv) > 0 && len(cliops.httpspubkey) > 0 && len(cliops.httpsprvkey) > 0 {
+		go func() {
+			log.Printf("Staring HTTPS service on: %s ...", cliops.httpssrv)
+			if err := http.ListenAndServeTLS(cliops.httpssrv, cliops.httpspubkey, cliops.httpsprvkey, nil); err != nil {
+				errchan <- err
+			}
+		}()
+	}
+
+	return errchan
+}
+
 func main() {
 	flag.Parse()
 
@@ -326,9 +355,11 @@ func main() {
 	http.Handle("/public/", http.StripPrefix(strings.TrimRight("/public/", "/"), http.FileServer(http.Dir(cliops.httpdir+"/public"))))
 	http.Handle("/assets/", http.StripPrefix(strings.TrimRight("/assets/", "/"), http.FileServer(http.Dir(cliops.httpdir+"/assets"))))
 
-	log.Printf("starting to listen on: %s ...\n", cliops.httpsrv)
-	err := http.ListenAndServe(cliops.httpsrv, nil)
-	if err != nil {
-		panic("failed to start: " + err.Error())
+	errchan := startHTTPServices()
+	select {
+	case err := <-errchan:
+		log.Printf("unable to start http services due to (error: %v)", err)
 	}
+	os.Exit(1)
+
 }
