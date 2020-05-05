@@ -314,7 +314,7 @@ func init() {
 	flag.StringVar(&cliops.httpspubkey, "https-pubkey", cliops.httpspubkey, "https server public key")
 	flag.StringVar(&cliops.httpsprvkey, "https-prvkey", cliops.httpsprvkey, "https server private key")
 	flag.StringVar(&cliops.httpdir, "http-dir", cliops.httpdir, "directory to serve over http")
-	flag.StringVar(&cliops.tpldir, "tpl-dir", cliops.httpdir, "directory with template files")
+	flag.StringVar(&cliops.tpldir, "tpl-dir", cliops.tpldir, "directory with template files")
 	flag.BoolVar(&cliops.version, "version", cliops.version, "print version")
 }
 
