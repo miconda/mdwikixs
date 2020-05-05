@@ -29,6 +29,7 @@ type CLIOptions struct {
 	httpspubkey string
 	httpsprvkey string
 	httpdir     string
+	tpldir      string
 	version     bool
 }
 
@@ -38,12 +39,14 @@ var cliops = CLIOptions{
 	httpspubkey: "",
 	httpsprvkey: "",
 	httpdir:     "web",
+	tpldir:      "templates",
 	version:     false,
 }
 
 const (
 	dirPages    = "pages"
 	dirPublic   = "public"
+	dirAssets   = "assets"
 	gitLogLimit = "5"
 )
 
@@ -242,7 +245,7 @@ func wikiHandler(w http.ResponseWriter, r *http.Request) {
 		page.cmdGitShow().cmdGitLog()
 		if edit == "true" || len(page.Bytes) == 0 {
 			page.Content = string(page.Bytes)
-			page.Template = "templates/edit.tpl"
+			page.Template = cliops.tpldir + "/edit.tpl"
 		} else {
 			page.toMarkdown()
 		}
@@ -288,9 +291,9 @@ func renderTemplate(w http.ResponseWriter, page *MWXSPage) {
 	}
 
 	// Include the rest
-	t.ParseFiles("templates/header.tpl", "templates/footer.tpl",
-		"templates/actions.tpl", "templates/revision.tpl",
-		"templates/revisions.tpl", "templates/page.tpl")
+	t.ParseFiles(cliops.tpldir+"/header.tpl", cliops.tpldir+"/footer.tpl",
+		cliops.tpldir+"/actions.tpl", cliops.tpldir+"/revision.tpl",
+		cliops.tpldir+"/revisions.tpl", cliops.tpldir+"/page.tpl")
 	err = t.Execute(w, page)
 	if err != nil {
 		log.Print("error: could not execute template: ", err)
@@ -311,6 +314,7 @@ func init() {
 	flag.StringVar(&cliops.httpspubkey, "https-pubkey", cliops.httpspubkey, "https server public key")
 	flag.StringVar(&cliops.httpsprvkey, "https-prvkey", cliops.httpsprvkey, "https server private key")
 	flag.StringVar(&cliops.httpdir, "http-dir", cliops.httpdir, "directory to serve over http")
+	flag.StringVar(&cliops.tpldir, "tpl-dir", cliops.httpdir, "directory with template files")
 	flag.BoolVar(&cliops.version, "version", cliops.version, "print version")
 }
 
@@ -352,8 +356,8 @@ func main() {
 	// Static resources
 	log.Printf("serving files over http from directory: %s\n", cliops.httpdir)
 
-	http.Handle("/public/", http.StripPrefix(strings.TrimRight("/public/", "/"), http.FileServer(http.Dir(cliops.httpdir+"/public"))))
-	http.Handle("/assets/", http.StripPrefix(strings.TrimRight("/assets/", "/"), http.FileServer(http.Dir(cliops.httpdir+"/assets"))))
+	http.Handle("/"+dirPublic+"/", http.StripPrefix(strings.TrimRight("/"+dirPublic+"/", "/"), http.FileServer(http.Dir(cliops.httpdir+"/"+dirPublic))))
+	http.Handle("/"+dirAssets+"/", http.StripPrefix(strings.TrimRight("/"+dirAssets+"/", "/"), http.FileServer(http.Dir(cliops.httpdir+"/"+dirAssets))))
 
 	errchan := startHTTPServices()
 	select {
