@@ -41,6 +41,8 @@ cd $GOPATH/src/github.com/miconda/mdwikixs
 go build
 ```
 
+Then `mdwikixs` has to be run from the source folder, not from `$GOPATH/bin/`.
+
 ## Running Wiki ##
 
 Create the folder where wiki systems should run:
