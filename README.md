@@ -6,7 +6,11 @@ Markdown Wiki XS Size
 
 Minimal wiki system using markdown format for pages. It has git storage, keeping the revisions of the pages, allowing to revert at any time.
 
-It is written in Go (golang), aiming to be self contained and run on local network, even when there is no internet connection.
+The default UI is minimal, with a simple navigation bar at the top and button to edit or view old page revisions. The UI
+can be customized by editing the template files (see `templates` folder in the source code tree).
+
+It is written in Go (golang), aiming to be self contained as much as possible, but allow also customization,
+with ability to run on local network, even when there is no internet connection.
 
 ## Installation ##
 
@@ -78,7 +82,8 @@ repository as well.
 
 **Important Note**: before clicking on `Save` button be sure the `Change Log`
 filed (located below the text area with content) is filled, otherwise the changes
-are not saved.
+are not saved. To cancel editing a page, just click on the page name in the
+navigation bar at the top to go back to view the html page.
 
 ## Customization ##
 
