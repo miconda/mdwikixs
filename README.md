@@ -12,6 +12,11 @@ can be customized by editing the template files (see `templates` folder in the s
 It is written in Go (golang), aiming to be self contained as much as possible, but allow also customization,
 with ability to run on local network, even when there is no internet connection.
 
+An important goal is that the outcome of using the wiki can be easily sent to other people that can view them
+without running any web server or wiki system. Practically, just archive the `web/pages` folder and send it over.
+The markdown files are easy to read with any text editor. If you do not want to include the editing history (the
+revisions of the wiki pages) in what is sent out, exclude the `web/pages/.git/` folder when creating the archive.
+
 ## Installation ##
 
 To compile `mdwikixs` it is required to install the [Go language](https://golang.org/) and set the required environment variables.
@@ -78,12 +83,34 @@ To add new pages, just edit the index page and add link references, like:
 
 Save, then click on `My First Page` link and add content. When save is pressed,
 the new page is created in a file named `page1.md`, being added to the git
-repository as well.
+repository as well. The `mdwikixs` supports also creating subfolders to store
+the wiki files, reference them like:
+
+```
+[Page In Subfolder](subfolder/page1)
+```
+
+The markdown file will be saved in:
+
+```
+web/pages/subfolder/page1.md
+```
 
 **Important Note**: before clicking on `Save` button be sure the `Change Log`
 filed (located below the text area with content) is filled, otherwise the changes
 are not saved. To cancel editing a page, just click on the page name in the
 navigation bar at the top to go back to view the html page.
+
+### Embedded File Server ###
+
+Besides creating markdown files, keeping editing history in git and rendering
+the markdown files to html, the `mdwikixs` can serve for download the files stored
+in `web/public/` folder. These files can be referenced in wiki pages (markdown
+files) like:
+
+```
+[File To Download](/public/file-to-download.pdf)
+```
 
 ## Customization ##
 
