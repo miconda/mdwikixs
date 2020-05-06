@@ -97,7 +97,7 @@ web/pages/subfolder/page1.md
 ```
 
 **Important Note**: before clicking on `Save` button be sure the `Change Log`
-filed (located below the text area with content) is filled, otherwise the changes
+field (located below the text area with content) is filled, otherwise the changes
 are not saved. To cancel editing a page, just click on the page name in the
 navigation bar at the top to go back to view the html page.
 
