@@ -122,6 +122,13 @@ The markdown files are rendered to HTML based on template files located in
 The content of the template files should follow the specifications of the
 [Go language templates](https://golang.org/pkg/html/template/).
 
+## Screenshots ##
+
+To keep this repo small in size, to match the goals of `mdwikixs` of XS size,
+several screenshots were published in an external repository - see them at:
+
+  * https://github.com/miconda/vresources/tree/master/mdwikixs/screenshots
+
 ## Contributions ##
 
 Bug reports must be submitted at:
