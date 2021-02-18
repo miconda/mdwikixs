@@ -71,7 +71,7 @@ cd ~/mdwikixs-site/
 $GOPATH/bin/mdwikixs
 ```
 
-Visit [http://127.0.0.8040/](http://127.0.0.8040/).
+Visit [http://127.0.0.1:8040/](http://127.0.0.1:8040/).
 
 The `mdwikixs` can listen on different `IP:PORT` as well as serve over `HTTPS`,
 see `mdwikixs -h` for command line options.
