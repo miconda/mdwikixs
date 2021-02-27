@@ -24,8 +24,10 @@ const mwikixsVersion = "1.0"
 
 // CLIOptions - structure for command line options
 type CLIOptions struct {
+	domain      string
 	httpsrv     string
 	httpssrv    string
+	httpsusele  bool
 	httpspubkey string
 	httpsprvkey string
 	httpdir     string
@@ -34,8 +36,10 @@ type CLIOptions struct {
 }
 
 var cliops = CLIOptions{
+	domain:      "",
 	httpsrv:     "127.0.0.1:8040",
 	httpssrv:    "",
+	httpsusele:  false,
 	httpspubkey: "",
 	httpsprvkey: "",
 	httpdir:     "web",
@@ -309,10 +313,12 @@ func init() {
 		os.Exit(1)
 	}
 
+	flag.StringVar(&cliops.domain, "domain", cliops.domain, "http service domain")
 	flag.StringVar(&cliops.httpsrv, "http-srv", cliops.httpsrv, "http server bind address")
 	flag.StringVar(&cliops.httpssrv, "https-srv", cliops.httpssrv, "https server bind address")
 	flag.StringVar(&cliops.httpspubkey, "https-pubkey", cliops.httpspubkey, "https server public key")
 	flag.StringVar(&cliops.httpsprvkey, "https-prvkey", cliops.httpsprvkey, "https server private key")
+	flag.BoolVar(&cliops.httpsusele, "use-letsencrypt", cliops.httpsusele, "use local letsencrypt certificates (requires domain)")
 	flag.StringVar(&cliops.httpdir, "http-dir", cliops.httpdir, "directory to serve over http")
 	flag.StringVar(&cliops.tpldir, "tpl-dir", cliops.tpldir, "directory with template files")
 	flag.BoolVar(&cliops.version, "version", cliops.version, "print version")
@@ -349,6 +355,11 @@ func startHTTPServices() chan error {
 
 func main() {
 	flag.Parse()
+
+	if cliops.httpsusele && len(cliops.httpssrv) > 0 && len(cliops.domain) > 0 {
+		cliops.httpspubkey = "/etc/letsencrypt/live/" + cliops.domain + "/fullchain.pem"
+		cliops.httpsprvkey = "/etc/letsencrypt/live/" + cliops.domain + "/privkey.pem"
+	}
 
 	// Handlers
 	http.HandleFunc("/", wikiHandler)
