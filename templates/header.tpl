@@ -3,7 +3,7 @@
 <head>
  <meta charset="UTF-8">
  <title>MdWikiXS</title>
- <link href="/assets/css/bootstrap.min.css" rel="stylesheet">
+ <link href="{{.URLBaseDir}}/assets/css/bootstrap.min.css" rel="stylesheet">
  <meta name="viewport" content="width=device-width, initial-scale=1">
 </head>
 <body>
@@ -13,9 +13,9 @@
     <li class="active"><a href="/index">(home)</a></li>
     {{range $dir := .Dirs}}
      {{if $dir.Active}}
-      <li class="active"><a href="{{$dir.Path}}">{{$dir.Name}}</a></li>
+      <li class="active"><a href="{{.URLBaseDir}}/{{$dir.Path}}">{{$dir.Name}}</a></li>
      {{else}}
-      <li><a href="{{$dir.Path}}">{{$dir.Name}}</a></li>
+      <li><a href="{{.URLBaseDir}}/{{$dir.Path}}">{{$dir.Name}}</a></li>
      {{end}}
     {{end}}
    </ol>

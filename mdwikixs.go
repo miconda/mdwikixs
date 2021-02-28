@@ -58,15 +58,16 @@ const (
 
 // MWXSPage - wiki page
 type MWXSPage struct {
-	Path     string
-	File     string
-	Content  string
-	Template string
-	Revision string
-	Bytes    []byte
-	Dirs     []*MWXSDirectory
-	Log      []*MWXSGitLog
-	Markdown template.HTML
+	Path       string
+	URLBaseDir string
+	File       string
+	Content    string
+	Template   string
+	Revision   string
+	Bytes      []byte
+	Dirs       []*MWXSDirectory
+	Log        []*MWXSGitLog
+	Markdown   template.HTML
 
 	Revisions bool // Show revisions
 }
@@ -231,6 +232,7 @@ func wikiHandler(w http.ResponseWriter, r *http.Request) {
 	page.Revisions = parseBool(r.FormValue("revisions"))
 
 	page.Dirs = listDirectories(uPath)
+	page.URLBaseDir = strings.TrimRight(cliops.urldir, "/")
 
 	if content != "" && changelog != "" {
 		bytes := []byte(content)
