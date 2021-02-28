@@ -32,6 +32,7 @@ type CLIOptions struct {
 	httpsprvkey string
 	httpdir     string
 	tpldir      string
+	urldir      string
 	version     bool
 }
 
@@ -44,6 +45,7 @@ var cliops = CLIOptions{
 	httpsprvkey: "",
 	httpdir:     "web",
 	tpldir:      "templates",
+	urldir:      "",
 	version:     false,
 }
 
@@ -321,6 +323,7 @@ func init() {
 	flag.BoolVar(&cliops.httpsusele, "use-letsencrypt", cliops.httpsusele, "use local letsencrypt certificates (requires domain)")
 	flag.StringVar(&cliops.httpdir, "http-dir", cliops.httpdir, "directory to serve over http")
 	flag.StringVar(&cliops.tpldir, "tpl-dir", cliops.tpldir, "directory with template files")
+	flag.StringVar(&cliops.urldir, "url-dir", cliops.urldir, "base directory for URL")
 	flag.BoolVar(&cliops.version, "version", cliops.version, "print version")
 }
 
@@ -365,14 +368,25 @@ func main() {
 		cliops.httpsprvkey = "/etc/letsencrypt/live/" + cliops.domain + "/privkey.pem"
 	}
 
+	if len(cliops.urldir) == 0 {
+		cliops.urldir = "/"
+	} else {
+		if !strings.HasPrefix(cliops.urldir, "/") {
+			cliops.urldir = "/" + cliops.urldir
+		}
+		if !strings.HasSuffix(cliops.urldir, "/") {
+			cliops.urldir = cliops.urldir + "/"
+		}
+	}
+
 	// Handlers
-	http.HandleFunc("/", wikiHandler)
+	http.HandleFunc(cliops.urldir, wikiHandler)
 
 	// Static resources
 	log.Printf("serving files over http from directory: %s\n", cliops.httpdir)
 
-	http.Handle("/"+dirPublic+"/", http.StripPrefix(strings.TrimRight("/"+dirPublic+"/", "/"), http.FileServer(http.Dir(cliops.httpdir+"/"+dirPublic))))
-	http.Handle("/"+dirAssets+"/", http.StripPrefix(strings.TrimRight("/"+dirAssets+"/", "/"), http.FileServer(http.Dir(cliops.httpdir+"/"+dirAssets))))
+	http.Handle(cliops.urldir+dirPublic+"/", http.StripPrefix(strings.TrimRight(cliops.urldir+dirPublic+"/", "/"), http.FileServer(http.Dir(cliops.httpdir+"/"+dirPublic))))
+	http.Handle(cliops.urldir+dirAssets+"/", http.StripPrefix(strings.TrimRight(cliops.urldir+dirAssets+"/", "/"), http.FileServer(http.Dir(cliops.httpdir+"/"+dirAssets))))
 
 	errchan := startHTTPServices()
 	select {
