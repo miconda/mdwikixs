@@ -356,6 +356,10 @@ func startHTTPServices() chan error {
 func main() {
 	flag.Parse()
 
+	if cliops.httpsusele && len(cliops.domain) == 0 {
+		log.Printf("use-letsencrypt requires domain parameter\n")
+		os.Exit(1)
+	}
 	if cliops.httpsusele && len(cliops.httpssrv) > 0 && len(cliops.domain) > 0 {
 		cliops.httpspubkey = "/etc/letsencrypt/live/" + cliops.domain + "/fullchain.pem"
 		cliops.httpsprvkey = "/etc/letsencrypt/live/" + cliops.domain + "/privkey.pem"
@@ -376,5 +380,4 @@ func main() {
 		log.Printf("unable to start http services due to (error: %v)", err)
 	}
 	os.Exit(1)
-
 }
