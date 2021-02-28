@@ -86,6 +86,10 @@ type MWXSGitLog struct {
 	Link    bool
 }
 
+type MWXHandler struct {
+	address string
+}
+
 func (page *MWXSPage) isHead() bool {
 	return len(page.Log) > 0 && page.Revision == page.Log[0].Hash
 }
@@ -259,6 +263,10 @@ func wikiHandler(w http.ResponseWriter, r *http.Request) {
 	renderTemplate(w, page)
 }
 
+func (mhandler *MWXHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	wikiHandler(w, r)
+}
+
 func writeFile(bytes []byte, entry string) error {
 	err := os.MkdirAll(path.Dir(entry), 0777)
 	if err == nil {
@@ -380,7 +388,11 @@ func main() {
 	}
 
 	// Handlers
-	http.HandleFunc(cliops.urldir, wikiHandler)
+	if cliops.urldir == "/" {
+		http.HandleFunc(cliops.urldir, wikiHandler)
+	} else {
+		http.Handle(cliops.urldir, http.StripPrefix(strings.TrimRight(cliops.urldir+dirAssets+"/", "/"), new(MWXHandler)))
+	}
 
 	// Static resources
 	log.Printf("serving files over http from directory: %s\n", cliops.httpdir)
