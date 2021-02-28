@@ -391,7 +391,7 @@ func main() {
 	if cliops.urldir == "/" {
 		http.HandleFunc(cliops.urldir, wikiHandler)
 	} else {
-		http.Handle(cliops.urldir, http.StripPrefix(strings.TrimRight(cliops.urldir+dirAssets+"/", "/"), new(MWXHandler)))
+		http.Handle(cliops.urldir, http.StripPrefix(strings.TrimRight(cliops.urldir, "/"), new(MWXHandler)))
 	}
 
 	// Static resources
