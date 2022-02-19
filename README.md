@@ -106,7 +106,7 @@ navigation bar at the top to go back to view the html page.
 
 ### Embedded File Server ###
 
-Besides creating markdown files, editing,d keeping revision history in git and rendering
+Besides creating markdown files, editing, keeping revision history in git and rendering
 the markdown files to html, the `mdwikixs` can serve for download the files stored
 in `web/public/` folder. These files can be referenced in wiki pages (markdown
 files) like:
