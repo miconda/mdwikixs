@@ -44,6 +44,12 @@ go build
 
 Then `mdwikixs` has to be run from the source folder, not from `$GOPATH/bin/`.
 
+### Download Binary Release ###
+
+Binary releases for `Linux`, `MacOS` and `Windows` are available at:
+
+  * https://github.com/miconda/mdwikixs/releases
+
 ## Running Wiki ##
 
 Create the folder where wiki systems should run:
