@@ -125,7 +125,8 @@ func (page *MWXSPage) cmdGitShow() *MWXSPage {
 // git command to fetch page commit log
 func (page *MWXSPage) cmdGitLog() *MWXSPage {
 	log.Printf("exec: git log ... %s\n", page.File)
-	buf := runGitCmd(exec.Command("git", "log", "--pretty=format:%h %ad %s", "--date=relative", "-n", gitLogLimit, page.File))
+	buf := runGitCmd(exec.Command("git", "log", "--pretty=format:%h %ad %s", "--date=relative", "-n",
+		gitLogLimit, page.File))
 	var err error
 	b := bufio.NewReader(buf)
 	var bytes []byte
@@ -330,7 +331,8 @@ func init() {
 	flag.StringVar(&cliops.httpssrv, "https-srv", cliops.httpssrv, "https server bind address")
 	flag.StringVar(&cliops.httpspubkey, "https-pubkey", cliops.httpspubkey, "https server public key")
 	flag.StringVar(&cliops.httpsprvkey, "https-prvkey", cliops.httpsprvkey, "https server private key")
-	flag.BoolVar(&cliops.httpsusele, "use-letsencrypt", cliops.httpsusele, "use local letsencrypt certificates (requires domain)")
+	flag.BoolVar(&cliops.httpsusele, "use-letsencrypt", cliops.httpsusele,
+		"use local letsencrypt certificates (requires domain)")
 	flag.StringVar(&cliops.httpdir, "http-dir", cliops.httpdir, "directory to serve over http")
 	flag.StringVar(&cliops.tpldir, "tpl-dir", cliops.tpldir, "directory with template files")
 	flag.StringVar(&cliops.urldir, "url-dir", cliops.urldir, "base directory for URL")
@@ -346,7 +348,6 @@ func startHTTPServices() chan error {
 		go func() {
 			if len(cliops.urldir) > 0 {
 				log.Printf("staring HTTP service on: http://%s/%s/ ...", cliops.httpsrv, cliops.urldir)
-
 			} else {
 				log.Printf("staring HTTP service on: http://%s/ ...", cliops.httpsrv)
 			}
@@ -416,8 +417,10 @@ func main() {
 	// Static resources
 	log.Printf("serving files over http from directory: %s\n", cliops.httpdir)
 
-	http.Handle(cliops.urldir+dirPublic+"/", http.StripPrefix(strings.TrimRight(cliops.urldir+dirPublic+"/", "/"), http.FileServer(http.Dir(cliops.httpdir+"/"+dirPublic))))
-	http.Handle(cliops.urldir+dirAssets+"/", http.StripPrefix(strings.TrimRight(cliops.urldir+dirAssets+"/", "/"), http.FileServer(http.Dir(cliops.httpdir+"/"+dirAssets))))
+	http.Handle(cliops.urldir+dirPublic+"/", http.StripPrefix(strings.TrimRight(cliops.urldir+dirPublic+"/", "/"),
+		http.FileServer(http.Dir(cliops.httpdir+"/"+dirPublic))))
+	http.Handle(cliops.urldir+dirAssets+"/", http.StripPrefix(strings.TrimRight(cliops.urldir+dirAssets+"/", "/"),
+		http.FileServer(http.Dir(cliops.httpdir+"/"+dirAssets))))
 
 	errchan := startHTTPServices()
 	select {
