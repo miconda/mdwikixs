@@ -347,9 +347,9 @@ func startHTTPServices() chan error {
 	if len(cliops.httpsrv) > 0 {
 		go func() {
 			if len(cliops.urldir) > 0 {
-				log.Printf("staring HTTP service on: http://%s/%s/ ...", cliops.httpsrv, cliops.urldir)
+				log.Printf("staring HTTP service on: http://%s%s ...", cliops.httpsrv, cliops.urldir)
 			} else {
-				log.Printf("staring HTTP service on: http://%s/ ...", cliops.httpsrv)
+				log.Printf("staring HTTP service on: http://%s ...", cliops.httpsrv)
 			}
 
 			if err := http.ListenAndServe(cliops.httpsrv, nil); err != nil {
@@ -363,16 +363,16 @@ func startHTTPServices() chan error {
 	if len(cliops.httpssrv) > 0 && len(cliops.httpspubkey) > 0 && len(cliops.httpsprvkey) > 0 {
 		go func() {
 			if len(cliops.urldir) > 0 {
-				log.Printf("Staring HTTPS service on: http://%s/%s/ ...", cliops.httpssrv, cliops.urldir)
+				log.Printf("Staring HTTPS service on: http://%s%s ...", cliops.httpssrv, cliops.urldir)
 			} else {
-				log.Printf("Staring HTTPS service on: http://%s/ ...", cliops.httpssrv)
+				log.Printf("Staring HTTPS service on: http://%s ...", cliops.httpssrv)
 			}
 			if len(cliops.domain) > 0 {
-				dtoken := strings.Split(strings.TrimSpace(cliops.domain), ":")
+				dtoken := strings.Split(strings.TrimSpace(cliops.httpssrv), ":")
 				if len(cliops.urldir) > 0 {
-					log.Printf("HTTPS with domain: https://%s:%s/%s/ ...", cliops.domain, dtoken[1], cliops.urldir)
+					log.Printf("HTTPS with domain: https://%s:%s%s ...", cliops.domain, dtoken[1], cliops.urldir)
 				} else {
-					log.Printf("HTTPS with domain: https://%s:%s/ ...", cliops.domain, dtoken[1])
+					log.Printf("HTTPS with domain: https://%s:%s ...", cliops.domain, dtoken[1])
 				}
 			}
 			if err := http.ListenAndServeTLS(cliops.httpssrv, cliops.httpspubkey, cliops.httpsprvkey, nil); err != nil {
