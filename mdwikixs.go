@@ -14,6 +14,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -317,12 +318,60 @@ func renderTemplate(w http.ResponseWriter, page *MWXSPage) {
 	}
 }
 
+func printCLIOptions() {
+	type CLIOptionDef struct {
+		Ops      []string
+		Usage    string
+		DefValue string
+		VType    string
+	}
+	var items []CLIOptionDef
+	flag.VisitAll(func(f *flag.Flag) {
+		var found bool = false
+		for idx, it := range items {
+			if it.Usage == f.Usage {
+				found = true
+				it.Ops = append(it.Ops, f.Name)
+				items[idx] = it
+			}
+		}
+		if !found {
+			items = append(items, CLIOptionDef{
+				Ops:      []string{f.Name},
+				Usage:    f.Usage,
+				DefValue: f.DefValue,
+				VType:    fmt.Sprintf("%T", f.Value),
+			})
+		}
+	})
+	sort.Slice(items, func(i, j int) bool { return strings.ToLower(items[i].Ops[0]) < strings.ToLower(items[j].Ops[0]) })
+	for _, val := range items {
+		vtype := val.VType[6 : len(val.VType)-5]
+		if vtype[len(vtype)-2:] == "64" {
+			vtype = vtype[:len(vtype)-2]
+		}
+		for _, opt := range val.Ops {
+			if vtype == "bool" {
+				fmt.Printf("  -%s\n", opt)
+			} else {
+				fmt.Printf("  -%s %s\n", opt, vtype)
+			}
+		}
+		if vtype != "bool" && len(val.DefValue) > 0 {
+			fmt.Printf("      %s [default: %s]\n", val.Usage, val.DefValue)
+		} else {
+			fmt.Printf("      %s\n", val.Usage)
+		}
+	}
+}
+
 // initialize application components
 func init() {
 	// command line arguments
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage of %s (v%s):\n", filepath.Base(os.Args[0]), mwikixsVersion)
-		flag.PrintDefaults()
+		printCLIOptions()
+		fmt.Fprintf(os.Stderr, "\n")
 		os.Exit(1)
 	}
 
