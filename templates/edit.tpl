@@ -6,7 +6,7 @@
  </div>
  <div class="form-inline col-md-12">
   <div class="form-group col-md-8">
-   <input type="text" class="form-control" name="msg" placeholder="Change Log (Must be filled to update the page)"/>
+   <input type="text" class="form-control" name="msg" placeholder="Change Log Message"/>
   </div>
   <div class="form-group col-md-2">
    <input type="text" class="form-control" name="author" placeholder="Author"/>
