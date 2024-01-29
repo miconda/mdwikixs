@@ -17,6 +17,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/russross/blackfriday"
 )
@@ -250,7 +251,8 @@ func wikiHandler(w http.ResponseWriter, r *http.Request) {
 
 	if content != "" && save == "true" {
 		if changelog == "" {
-			changelog = "by " + GetPeerIP(r)
+			now := time.Now()
+			changelog = "by " + GetPeerIP(r) + " at " + now.Format(time.RFC3339)
 		}
 		bytes := []byte(content)
 		err := writeFile(bytes, filePath)
