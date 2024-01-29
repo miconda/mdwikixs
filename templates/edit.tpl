@@ -12,7 +12,7 @@
    <input type="text" class="form-control" name="author" placeholder="Author"/>
   </div>
   <div class="form-group col-md-2">
-   <button type="submit" class="btn btn-default">
+   <button type="submit" class="btn btn-default" name="save" value="true">
     <span class="glyphicon glyphicon-floppy-disk"></span> Save
    </button>
   </div>
