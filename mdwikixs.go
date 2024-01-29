@@ -149,6 +149,17 @@ func (page *MWXSPage) cmdGitLog() *MWXSPage {
 	return page
 }
 
+func GetPeerIP(r *http.Request) string {
+	PeerIPAddr := r.Header.Get("X-Real-Ip")
+	if PeerIPAddr == "" {
+		PeerIPAddr = r.Header.Get("X-Forwarded-For")
+	}
+	if PeerIPAddr == "" {
+		PeerIPAddr = r.RemoteAddr
+	}
+	return PeerIPAddr
+}
+
 func parseLog(bytes []byte) *MWXSGitLog {
 	line := string(bytes)
 	re := regexp.MustCompile(`(.{0,7}) (\d+ \w+ ago) (.*)`)
@@ -236,7 +247,10 @@ func wikiHandler(w http.ResponseWriter, r *http.Request) {
 	page.Dirs = listDirectories(uPath)
 	page.URLBaseDir = strings.TrimRight(cliops.urldir, "/")
 
-	if content != "" && changelog != "" {
+	if content != "" {
+		if changelog == "" {
+			changelog = "by " + GetPeerIP(r)
+		}
 		bytes := []byte(content)
 		err := writeFile(bytes, filePath)
 		if err != nil {
