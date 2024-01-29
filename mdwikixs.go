@@ -234,6 +234,7 @@ func wikiHandler(w http.ResponseWriter, r *http.Request) {
 	// Params
 	content := r.FormValue("content")
 	edit := r.FormValue("edit")
+	save := r.FormValue("save")
 	changelog := r.FormValue("msg")
 	author := r.FormValue("author")
 	reset := r.FormValue("revert")
@@ -247,7 +248,7 @@ func wikiHandler(w http.ResponseWriter, r *http.Request) {
 	page.Dirs = listDirectories(uPath)
 	page.URLBaseDir = strings.TrimRight(cliops.urldir, "/")
 
-	if content != "" {
+	if content != "" && save == "true" {
 		if changelog == "" {
 			changelog = "by " + GetPeerIP(r)
 		}
