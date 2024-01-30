@@ -457,6 +457,10 @@ func main() {
 		log.Printf("use-letsencrypt requires domain parameter\n")
 		os.Exit(1)
 	}
+	if _, err := exec.LookPath("git"); err != nil {
+		log.Printf("git command cannot be found\n")
+		os.Exit(1)
+	}
 	if _, err := os.Stat(cliops.tpldir); os.IsNotExist(err) {
 		log.Printf(cliops.tpldir + " folder cannot be found\n")
 		os.Exit(1)
