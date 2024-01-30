@@ -469,6 +469,18 @@ func main() {
 		log.Printf(cliops.httpdir + " folder cannot be found\n")
 		os.Exit(1)
 	}
+	if _, err := os.Stat(cliops.httpdir + "/" + dirAssets); os.IsNotExist(err) {
+		log.Printf(cliops.httpdir + "/" + dirAssets + " folder cannot be found\n")
+		os.Exit(1)
+	}
+	if _, err := os.Stat(cliops.httpdir + "/" + dirPages); os.IsNotExist(err) {
+		log.Printf(cliops.httpdir + "/" + dirPages + " folder cannot be found\n")
+		os.Exit(1)
+	}
+	if _, err := os.Stat(cliops.httpdir + "/" + dirPublic); os.IsNotExist(err) {
+		log.Printf(cliops.httpdir + "/" + dirPublic + " folder cannot be found\n")
+		os.Exit(1)
+	}
 	if cliops.httpsusele && len(cliops.httpssrv) > 0 && len(cliops.domain) > 0 {
 		cliops.httpspubkey = "/etc/letsencrypt/live/" + cliops.domain + "/fullchain.pem"
 		cliops.httpsprvkey = "/etc/letsencrypt/live/" + cliops.domain + "/privkey.pem"
