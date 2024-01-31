@@ -35,6 +35,7 @@ type CLIOptions struct {
 	httpdir     string
 	tpldir      string
 	urldir      string
+	initsitedir bool
 	version     bool
 }
 
@@ -48,6 +49,7 @@ var cliops = CLIOptions{
 	httpdir:     "web",
 	tpldir:      "templates",
 	urldir:      "",
+	initsitedir: false,
 	version:     false,
 }
 
@@ -335,6 +337,30 @@ func renderTemplate(w http.ResponseWriter, page *MWXSPage) {
 	}
 }
 
+func initSiteDir() int {
+	shellCmds := "git clone --depth 1 https://github.com/miconda/mdwikixs _tmp_mdwikixs_git;" +
+		"mv ./_tmp_mdwikixs_git/web .;" +
+		"mv ./_tmp_mdwikixs_git/templates .;" +
+		"rm -rf ./_tmp_mdwikixs_git;" +
+		"cd ./web/pages;" +
+		"git init .;" +
+		"git add .;" +
+		"git commit . -m 'initializing';" +
+		"cd ../../;"
+
+	log.Printf("starting site directory initialization...\n")
+	cmd := exec.Command("sh", "-c", shellCmds)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	err := cmd.Run()
+	if err != nil {
+		log.Print("error: ", err)
+		return -1
+	}
+
+	return 0
+}
+
 func printCLIOptions() {
 	type CLIOptionDef struct {
 		Ops      []string
@@ -402,6 +428,7 @@ func init() {
 	flag.StringVar(&cliops.httpdir, "http-dir", cliops.httpdir, "directory to serve over http")
 	flag.StringVar(&cliops.tpldir, "tpl-dir", cliops.tpldir, "directory with template files")
 	flag.StringVar(&cliops.urldir, "url-dir", cliops.urldir, "base directory for URL")
+	flag.BoolVar(&cliops.initsitedir, "init-site-dir", cliops.initsitedir, "initialize site directory")
 	flag.BoolVar(&cliops.version, "version", cliops.version, "print version")
 }
 
@@ -460,6 +487,15 @@ func main() {
 	if _, err := exec.LookPath("git"); err != nil {
 		log.Printf("git command cannot be found\n")
 		os.Exit(1)
+	}
+	if cliops.initsitedir {
+		if initSiteDir() < 0 {
+			log.Printf("site directory initialization failed\n")
+			os.Exit(1)
+		} else {
+			log.Printf("site directory initialized\n")
+			os.Exit(0)
+		}
 	}
 	if _, err := os.Stat(cliops.tpldir); os.IsNotExist(err) {
 		log.Printf(cliops.tpldir + " folder cannot be found\n")
