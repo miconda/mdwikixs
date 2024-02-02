@@ -26,31 +26,33 @@ const mwikixsVersion = "1.1.2"
 
 // CLIOptions - structure for command line options
 type CLIOptions struct {
-	domain      string
-	httpsrv     string
-	httpssrv    string
-	httpsusele  bool
-	httpspubkey string
-	httpsprvkey string
-	httpdir     string
-	tpldir      string
-	urldir      string
-	initsitedir bool
-	version     bool
+	domain        string
+	httpsrv       string
+	httpssrv      string
+	httpsusele    bool
+	httpspubkey   string
+	httpsprvkey   string
+	httpdir       string
+	tpldir        string
+	urldir        string
+	initsitedir   bool
+	updatesitedir bool
+	version       bool
 }
 
 var cliops = CLIOptions{
-	domain:      "",
-	httpsrv:     "127.0.0.1:8040",
-	httpssrv:    "",
-	httpsusele:  false,
-	httpspubkey: "",
-	httpsprvkey: "",
-	httpdir:     "web",
-	tpldir:      "templates",
-	urldir:      "",
-	initsitedir: false,
-	version:     false,
+	domain:        "",
+	httpsrv:       "127.0.0.1:8040",
+	httpssrv:      "",
+	httpsusele:    false,
+	httpspubkey:   "",
+	httpsprvkey:   "",
+	httpdir:       "web",
+	tpldir:        "templates",
+	urldir:        "",
+	initsitedir:   false,
+	updatesitedir: false,
+	version:       false,
 }
 
 const (
@@ -361,6 +363,27 @@ func initSiteDir() int {
 	return 0
 }
 
+func updateSiteDir() int {
+	shellCmds := "git clone --depth 1 https://github.com/miconda/mdwikixs _tmp_mdwikixs_git;" +
+		"rm -rf ./templates;" +
+		"rm -rf ./web/assets;" +
+		"mv ./_tmp_mdwikixs_git/templates .;" +
+		"mv ./_tmp_mdwikixs_git/web/assets ./web/;" +
+		"rm -rf ./_tmp_mdwikixs_git;"
+
+	log.Printf("starting site directory update...\n")
+	cmd := exec.Command("sh", "-c", shellCmds)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	err := cmd.Run()
+	if err != nil {
+		log.Print("error: ", err)
+		return -1
+	}
+
+	return 0
+}
+
 func printCLIOptions() {
 	type CLIOptionDef struct {
 		Ops      []string
@@ -429,6 +452,7 @@ func init() {
 	flag.StringVar(&cliops.tpldir, "tpl-dir", cliops.tpldir, "directory with template files")
 	flag.StringVar(&cliops.urldir, "url-dir", cliops.urldir, "base directory for URL")
 	flag.BoolVar(&cliops.initsitedir, "init-site-dir", cliops.initsitedir, "initialize site directory")
+	flag.BoolVar(&cliops.updatesitedir, "update-site-dir", cliops.updatesitedir, "update site directory")
 	flag.BoolVar(&cliops.version, "version", cliops.version, "print version")
 }
 
@@ -494,6 +518,15 @@ func main() {
 			os.Exit(1)
 		} else {
 			log.Printf("site directory initialized\n")
+			os.Exit(0)
+		}
+	}
+	if cliops.updatesitedir {
+		if updateSiteDir() < 0 {
+			log.Printf("site directory update failed\n")
+			os.Exit(1)
+		} else {
+			log.Printf("site directory updated\n")
 			os.Exit(0)
 		}
 	}
