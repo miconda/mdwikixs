@@ -20,7 +20,7 @@ revisions of the wiki pages) in what is sent out, exclude the `web/pages/.git/` 
 
 ## Installation ##
 
-To compile `mdwikixs` it is required to install the [Go language](https://golang.org/) and set the required environment variables.
+To compile `mdwikixs` it is required to install the [Go language](https://golang.org/) and set the required environment variables. The `git` application has to be also installed.
 
 To download the sources, build and install:
 
@@ -57,6 +57,17 @@ Create the folder where wiki systems should run:
 ```
 mkdir ~/mdwikixs-site
 cd ~/mdwikixs-site
+```
+
+### For Version 1.2.0 Or Newer ###
+
+```
+mdwikixs -init-site-dir
+```
+
+For Version Older Than 1.2.0:
+
+```
 cp -a $GOPATH/src/github.com/miconda/mdwikixs/templates .
 cp -a $GOPATH/src/github.com/miconda/mdwikixs/web .
 ```
@@ -70,7 +81,18 @@ git add index.md
 git commit index.md -m "added the index.md file"
 ```
 
-Run `mdwikixs` inside the wiki main folder:
+### Start MdWikiXS ###
+
+Run `mdwikixs` inside the wiki main folder.
+
+If `mdwikixs` is deployed in a system `PATH` directory:
+
+```
+cd ~/mdwikixs-site/
+$GOPATH/bin/mdwikixs
+```
+
+If `mdwikixs` is deployed in the `GOPATH` directory:
 
 ```
 cd ~/mdwikixs-site/
