@@ -22,7 +22,7 @@ import (
 	"github.com/russross/blackfriday"
 )
 
-const mwikixsVersion = "1.1.2"
+const mwikixsVersion = "1.2.0"
 
 // CLIOptions - structure for command line options
 type CLIOptions struct {
