@@ -11,7 +11,8 @@ The editing of the markdown content is done in a bare bone text area.  The UI ca
 the template files (see `templates` folder in the source code tree).
 
 It is written in Go (golang), aiming to be self contained as much as possible, but allow also customization,
-with ability to run on local network, even when there is no internet connection.
+with ability to run on local network, even when there is no internet connection. It can be
+run without root/admin privileges on Linux, MacOS or Windows.
 
 An important goal is that the outcome of using the wiki can be easily sent to other people that can view them
 without running any web server or wiki system. Practically, just archive the `web/pages` folder and send it over.
