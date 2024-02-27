@@ -5,7 +5,7 @@
     <p class="text-muted">Revision: {{.Revision}}</p>
   {{end}}
   <hr class="text-muted" />
-  <a href="https://github.com/miconda/mdwikixs"><p class="text-muted text-center">MdWikiXS on Github</p></a>
+  <a href="https://github.com/miconda/mdwikixs"><p class="text-muted text-center">MdWikiXS v{{.MdWikiXS}} on Github</p></a>
 </div>
 <!-- end container -->
 </div>
