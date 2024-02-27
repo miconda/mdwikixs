@@ -70,6 +70,7 @@ type MWXSPage struct {
 	Content    string
 	Template   string
 	Revision   string
+	MWXVersion string
 	Bytes      []byte
 	Dirs       []*MWXSDirectory
 	Log        []*MWXSGitLog
@@ -250,6 +251,7 @@ func wikiHandler(w http.ResponseWriter, r *http.Request) {
 	page := &MWXSPage{File: uPath[1:] + ".md", Path: filePath}
 	page.Revisions = parseBool(r.FormValue("revisions"))
 
+	page.MWXVersion = mwikixsVersion
 	page.Dirs = listDirectories(uPath)
 	page.URLBaseDir = strings.TrimRight(cliops.urldir, "/")
 
