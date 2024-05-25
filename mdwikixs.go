@@ -6,7 +6,6 @@ import (
 	"flag"
 	"fmt"
 	"html/template"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -297,8 +296,9 @@ func (mhandler *MWXHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func writeFile(bytes []byte, entry string) error {
 	err := os.MkdirAll(path.Dir(entry), 0777)
 	if err == nil {
-		return ioutil.WriteFile(entry, bytes, 0644)
+		return os.WriteFile(entry, bytes, 0644)
 	}
+
 	return err
 }
 
