@@ -235,6 +235,10 @@ func wikiHandler(w http.ResponseWriter, r *http.Request) {
 	if uPath == "/" {
 		uPath = "/index"
 	}
+	if strings.Index(uPath, "..") != -1 {
+		log.Printf("error: invalid URL path %s\n", uPath)
+		return
+	}
 
 	// Params
 	content := r.FormValue("content")
