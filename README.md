@@ -2,6 +2,18 @@
 
 Markdown Wiki XS Size
 
+   * [Overview ##](#overview)
+   * [Installation ##](#installation)
+      + [Download Binary Release ###](#download-binary-release)
+   * [Running Wiki ##](#running-wiki)
+      + [For Version 1.2.0 Or Newer ###](#for-version-120-or-newer)
+      + [Start MdWikiXS ###](#start-mdwikixs)
+      + [Embedded File Server ###](#embedded-file-server)
+   * [Customization ##](#customization)
+   * [Screenshots ##](#screenshots)
+   * [Contributions ##](#contributions)
+   * [License ##](#license)
+
 ## Overview ##
 
 Minimal wiki system using markdown format for pages. It has git storage, keeping the revisions of the pages, allowing to revert at any time.
