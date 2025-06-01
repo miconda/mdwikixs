@@ -6,7 +6,7 @@ Markdown Wiki XS Size
    * [Installation](#installation)
       + [Download Binary Release](#download-binary-release)
    * [Running Wiki](#running-wiki)
-      + [For Version 1.2.0 Or Newer](#for-version-120-or-newer)
+      + [Init MdWikiXS](#init-mdwikixs)
       + [Start MdWikiXS](#start-mdwikixs)
       + [Embedded File Server](#embedded-file-server)
    * [Customization](#customization)
@@ -72,7 +72,9 @@ mkdir ~/mdwikixs-site
 cd ~/mdwikixs-site
 ```
 
-### For Version 1.2.0 Or Newer ###
+### Init MdWikiXS ###
+
+For Version 1.2.0 Or Newer:
 
 ```
 mdwikixs -init-site-dir
