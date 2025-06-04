@@ -19,15 +19,17 @@ Markdown Wiki XS Size
 Minimal wiki system using markdown format for pages. It has git storage, keeping the revisions of the pages, allowing to revert at any time.
 
 The default UI is minimal, with a simple navigation bar at the top and button to edit or view old page revisions.
+
 The editing of the markdown content is done in a bare bone text area.  The UI can be customized by editing
 the template files (see `templates` folder in the source code tree).
 
 It is written in Go (golang), aiming to be self contained as much as possible, but allow also customization,
 with ability to run on local network, even when there is no internet connection. It can be
-run without root/admin privileges on Linux, MacOS or Windows.
+run without `root/admin` privileges on Linux, MacOS or Windows.
 
 An important goal is that the outcome of using the wiki can be easily sent to other people that can view them
 without running any web server or wiki system. Practically, just archive the `web/pages` folder and send it over.
+
 The markdown files are easy to read with any text editor. If you do not want to include the editing history (the
 revisions of the wiki pages) in what is sent out, exclude the `web/pages/.git/` folder when creating the archive.
 
