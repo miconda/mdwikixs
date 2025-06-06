@@ -510,6 +510,10 @@ func startHTTPServices() chan error {
 func main() {
 	flag.Parse()
 
+	if cliops.version {
+		fmt.Println("MdWikiXS", mwikixsVersion)
+		return
+	}
 	if cliops.httpsusele && len(cliops.domain) == 0 {
 		log.Printf("use-letsencrypt requires domain parameter\n")
 		os.Exit(1)
