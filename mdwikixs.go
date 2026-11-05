@@ -3,6 +3,9 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"crypto/rand"
+	"crypto/subtle"
+	"encoding/base64"
 	"flag"
 	"fmt"
 	"html/template"
@@ -74,6 +77,7 @@ type MWXSPage struct {
 	Dirs       []*MWXSDirectory
 	Log        []*MWXSGitLog
 	Markdown   template.HTML
+	CSRFToken  string
 
 	Revisions bool // Show revisions
 }
@@ -226,6 +230,32 @@ func parseBool(value string) bool {
 	return boolValue
 }
 
+func newCSRFToken() string {
+	bytes := make([]byte, 32)
+	if _, err := rand.Read(bytes); err != nil {
+		log.Fatalf("error: cannot generate CSRF token: %v", err)
+	}
+	return base64.RawURLEncoding.EncodeToString(bytes)
+}
+
+var csrfToken = newCSRFToken()
+
+func authorizeMutation(w http.ResponseWriter, r *http.Request) bool {
+	if r.Method != http.MethodPost {
+		w.Header().Set("Allow", http.MethodPost)
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return false
+	}
+
+	requestToken := r.FormValue("csrf_token")
+	if subtle.ConstantTimeCompare([]byte(requestToken), []byte(csrfToken)) != 1 {
+		http.Error(w, "invalid CSRF token", http.StatusForbidden)
+		return false
+	}
+
+	return true
+}
+
 func wikiHandler(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path == "/favicon.ico" {
 		return
@@ -248,6 +278,9 @@ func wikiHandler(w http.ResponseWriter, r *http.Request) {
 	author := r.FormValue("author")
 	reset := r.FormValue("revert")
 	revision := r.FormValue("revision")
+	if (save == "true" || reset != "") && !authorizeMutation(w, r) {
+		return
+	}
 
 	filePath := fmt.Sprintf("%s/%s%s.md", cliops.httpdir, dirPages, uPath)
 	log.Printf("info: serving file: %s\n", filePath)
@@ -255,6 +288,7 @@ func wikiHandler(w http.ResponseWriter, r *http.Request) {
 	page.Revisions = parseBool(r.FormValue("revisions"))
 
 	page.MWXVersion = mwikixsVersion
+	page.CSRFToken = csrfToken
 	page.Dirs = listDirectories(uPath)
 	page.URLBaseDir = strings.TrimRight(cliops.urldir, "/")
 
