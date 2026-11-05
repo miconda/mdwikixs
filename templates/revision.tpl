@@ -2,6 +2,7 @@
  <!-- Actions for a specific revision (revert, diff etc) -->
 <div class="row col-md-9">
  <form method="POST">
+  <input type="hidden" name="csrf_token" value="{{.CSRFToken}}" />
   <div class="form-group">
    <button type="submit" class="btn btn-danger btn-xs">
     <span class="glyphicon glyphicon-step-backward"></span> Revert

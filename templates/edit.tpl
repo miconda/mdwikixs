@@ -1,6 +1,7 @@
 {{template "header" .}}
 <div class="row col-md-9">
 <form method="POST">
+ <input type="hidden" name="csrf_token" value="{{.CSRFToken}}" />
  <div class="form-group col-md-12">
   <textarea type="text" class="form-control" rows="15" placeholder="Insert markdown here" name="content">{{.Content}}</textarea>
  </div>
