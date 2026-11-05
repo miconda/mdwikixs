@@ -11,6 +11,7 @@ import (
 	"html/template"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path"
@@ -62,6 +63,23 @@ const (
 	dirPublic   = "public"
 	dirAssets   = "assets"
 	gitLogLimit = "5"
+
+	markdownExtensions = blackfriday.EXTENSION_NO_INTRA_EMPHASIS |
+		blackfriday.EXTENSION_TABLES |
+		blackfriday.EXTENSION_FENCED_CODE |
+		blackfriday.EXTENSION_AUTOLINK |
+		blackfriday.EXTENSION_STRIKETHROUGH |
+		blackfriday.EXTENSION_SPACE_HEADERS |
+		blackfriday.EXTENSION_HEADER_IDS |
+		blackfriday.EXTENSION_BACKSLASH_LINE_BREAK |
+		blackfriday.EXTENSION_DEFINITION_LISTS
+
+	markdownHTMLFlags = blackfriday.HTML_USE_XHTML |
+		blackfriday.HTML_USE_SMARTYPANTS |
+		blackfriday.HTML_SMARTYPANTS_FRACTIONS |
+		blackfriday.HTML_SMARTYPANTS_DASHES |
+		blackfriday.HTML_SMARTYPANTS_LATEX_DASHES |
+		blackfriday.HTML_SKIP_HTML
 )
 
 // MWXSPage - wiki page
@@ -99,6 +117,64 @@ type MWXSGitLog struct {
 
 type MWXHandler struct {
 	address string
+}
+
+type safeHTMLRenderer struct {
+	blackfriday.Renderer
+}
+
+func safeURL(destination []byte, allowedSchemes ...string) bool {
+	raw := string(destination)
+	if strings.TrimSpace(raw) != raw {
+		return false
+	}
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return false
+	}
+	if parsed.Scheme == "" {
+		return true
+	}
+	for _, scheme := range allowedSchemes {
+		if strings.EqualFold(parsed.Scheme, scheme) {
+			return true
+		}
+	}
+	return false
+}
+
+func (renderer safeHTMLRenderer) AutoLink(out *bytes.Buffer, link []byte, kind int) {
+	if kind == blackfriday.LINK_TYPE_EMAIL || safeURL(link, "http", "https", "ftp", "mailto") {
+		renderer.Renderer.AutoLink(out, link, kind)
+	}
+}
+
+func (renderer safeHTMLRenderer) Link(out *bytes.Buffer, link []byte, title []byte, content []byte) {
+	if safeURL(link, "http", "https", "ftp", "mailto") {
+		renderer.Renderer.Link(out, link, title, content)
+		return
+	}
+	// Keep the visible label when an unsafe destination is rejected.
+	out.Write(content)
+}
+
+func (renderer safeHTMLRenderer) Image(out *bytes.Buffer, link []byte, title []byte, alt []byte) {
+	if safeURL(link, "http", "https") {
+		renderer.Renderer.Image(out, link, title, alt)
+	}
+}
+
+func (renderer safeHTMLRenderer) Header(out *bytes.Buffer, text func() bool, level int, id string) {
+	for _, char := range id {
+		if !((char >= 'a' && char <= 'z') ||
+			(char >= 'A' && char <= 'Z') ||
+			(char >= '0' && char <= '9') ||
+			char == '-' || char == '_' || char == ':' || char == '.') {
+			id = ""
+			break
+		}
+	}
+	renderer.Renderer.Header(out, text, level, id)
 }
 
 func (page *MWXSPage) isHead() bool {
@@ -219,7 +295,13 @@ func runGitCmd(cmd *exec.Cmd) *bytes.Buffer {
 
 // Process page contents
 func (page *MWXSPage) toMarkdown() {
-	page.Markdown = template.HTML(string(blackfriday.MarkdownCommon(page.Bytes)))
+	renderer := safeHTMLRenderer{Renderer: blackfriday.HtmlRenderer(markdownHTMLFlags, "", "")}
+	rendered := blackfriday.MarkdownOptions(page.Bytes, renderer, blackfriday.Options{
+		Extensions: markdownExtensions,
+	})
+	// The renderer omits raw HTML and rejects unsafe link schemes, so its
+	// generated markup is safe to pass through html/template without escaping.
+	page.Markdown = template.HTML(rendered)
 }
 
 func parseBool(value string) bool {
