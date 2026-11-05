@@ -108,3 +108,73 @@ func TestWikiHandlerRejectsUnauthorizedMutations(t *testing.T) {
 		})
 	}
 }
+
+func TestMarkdownRenderingRejectsXSS(t *testing.T) {
+	tests := []struct {
+		name     string
+		markdown string
+		forbid   []string
+	}{
+		{
+			name:     "script block",
+			markdown: "<script>alert('xss')</script>",
+			forbid:   []string{"<script", "alert("},
+		},
+		{
+			name:     "event handler",
+			markdown: `<img src="x" onerror="alert('xss')">`,
+			forbid:   []string{"<img", "onerror", "alert("},
+		},
+		{
+			name:     "unsafe link",
+			markdown: "[click](javascript:alert('xss'))",
+			forbid:   []string{"javascript:", "href="},
+		},
+		{
+			name:     "unsafe image",
+			markdown: "![image](data:text/html;base64,PHNjcmlwdD4=)",
+			forbid:   []string{"data:", "src="},
+		},
+		{
+			name:     "unsafe custom header ID",
+			markdown: `# Heading {#"><img src=x onerror=alert('xss')>}`,
+			forbid:   []string{"<img", "onerror", "alert(", `id="`},
+		},
+		{
+			name:     "obfuscated unsafe link",
+			markdown: "[click](JaVaScRiPt:alert('xss'))",
+			forbid:   []string{"javascript:", "href="},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			page := &MWXSPage{Bytes: []byte(tt.markdown)}
+			page.toMarkdown()
+			rendered := strings.ToLower(string(page.Markdown))
+
+			for _, forbidden := range tt.forbid {
+				if strings.Contains(rendered, forbidden) {
+					t.Fatalf("rendered Markdown contains %q: %s", forbidden, rendered)
+				}
+			}
+		})
+	}
+}
+
+func TestMarkdownRenderingPreservesSafeFormatting(t *testing.T) {
+	page := &MWXSPage{Bytes: []byte("# Heading\n\n**bold**, [safe](https://example.com), and [wiki page](page1)")}
+	page.toMarkdown()
+	rendered := string(page.Markdown)
+
+	for _, expected := range []string{
+		"<h1>Heading</h1>",
+		"<strong>bold</strong>",
+		`href="https://example.com"`,
+		`href="page1"`,
+	} {
+		if !strings.Contains(rendered, expected) {
+			t.Errorf("rendered Markdown does not contain %q: %s", expected, rendered)
+		}
+	}
+}
