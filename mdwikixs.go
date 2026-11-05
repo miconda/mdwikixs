@@ -20,6 +20,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/russross/blackfriday"
@@ -322,6 +323,11 @@ func newCSRFToken() string {
 
 var csrfToken = newCSRFToken()
 
+// gitRepoMu protects the shared worktree and Git index. A write lock spans an
+// entire filesystem/Git transaction so one request cannot commit another
+// request's staged changes. Readers wait until that transaction is complete.
+var gitRepoMu sync.RWMutex
+
 func authorizeMutation(w http.ResponseWriter, r *http.Request) bool {
 	if r.Method != http.MethodPost {
 		w.Header().Set("Allow", http.MethodPost)
@@ -379,26 +385,41 @@ func wikiHandler(w http.ResponseWriter, r *http.Request) {
 			now := time.Now()
 			changelog = "by " + GetPeerIP(r) + " at " + now.Format(time.RFC3339)
 		}
-		bytes := []byte(content)
-		err := writeFile(bytes, filePath)
-		if err != nil {
-			log.Printf("error: cannot write to file %s: %v\n", filePath, err)
-		} else {
+		func() {
+			gitRepoMu.Lock()
+			defer gitRepoMu.Unlock()
+
+			bytes := []byte(content)
+			err := writeFile(bytes, filePath)
+			if err != nil {
+				log.Printf("error: cannot write to file %s: %v\n", filePath, err)
+				return
+			}
 			// Wrote file, commit
 			page.Bytes = bytes
 			page.cmdGitAdd().cmdGitCommit(changelog, author).cmdGitLog()
 			page.toMarkdown()
-		}
+		}()
 	} else if reset != "" {
-		// Reset to revision
-		page.Revision = reset
-		page.cmdGitRevert().cmdGitCommit("reverted to: "+page.Revision, author)
-		page.Revision = ""
-		page.cmdGitShow().cmdGitLog().toMarkdown()
+		func() {
+			gitRepoMu.Lock()
+			defer gitRepoMu.Unlock()
+
+			// Reset to revision
+			page.Revision = reset
+			page.cmdGitRevert().cmdGitCommit("reverted to: "+page.Revision, author)
+			page.Revision = ""
+			page.cmdGitShow().cmdGitLog().toMarkdown()
+		}()
 	} else {
-		// Show specific revision
-		page.Revision = revision
-		page.cmdGitShow().cmdGitLog()
+		func() {
+			gitRepoMu.RLock()
+			defer gitRepoMu.RUnlock()
+
+			// Show specific revision
+			page.Revision = revision
+			page.cmdGitShow().cmdGitLog()
+		}()
 		if edit == "true" || len(page.Bytes) == 0 {
 			page.Content = string(page.Bytes)
 			page.Template = cliops.tpldir + "/edit.tpl"
