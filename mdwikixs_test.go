@@ -1,10 +1,16 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strconv"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -177,4 +183,75 @@ func TestMarkdownRenderingPreservesSafeFormatting(t *testing.T) {
 			t.Errorf("rendered Markdown does not contain %q: %s", expected, rendered)
 		}
 	}
+}
+
+func TestConcurrentSavesCreateSeparateCommits(t *testing.T) {
+	httpDir := t.TempDir()
+	pagesDir := filepath.Join(httpDir, dirPages)
+	if err := os.MkdirAll(pagesDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	runTestGit(t, pagesDir, "init", "-q")
+	runTestGit(t, pagesDir, "config", "user.name", "MdWikiXS Test")
+	runTestGit(t, pagesDir, "config", "user.email", "mdwikixs@example.test")
+
+	previousHTTPDir := cliops.httpdir
+	cliops.httpdir = httpDir
+	t.Cleanup(func() { cliops.httpdir = previousHTTPDir })
+
+	const saves = 8
+	start := make(chan struct{})
+	results := make(chan string, saves)
+	var workers sync.WaitGroup
+	workers.Add(saves)
+
+	for i := 0; i < saves; i++ {
+		go func(index int) {
+			defer workers.Done()
+			<-start
+
+			form := url.Values{
+				"content":    []string{fmt.Sprintf("page %d", index)},
+				"save":       []string{"true"},
+				"msg":        []string{fmt.Sprintf("save page %d", index)},
+				"csrf_token": []string{csrfToken},
+			}
+			request := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/page-%d", index), strings.NewReader(form.Encode()))
+			request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			response := httptest.NewRecorder()
+
+			wikiHandler(response, request)
+			if response.Code != http.StatusOK {
+				results <- fmt.Sprintf("save %d returned status %d", index, response.Code)
+			}
+		}(i)
+	}
+
+	close(start)
+	workers.Wait()
+	close(results)
+	for result := range results {
+		t.Error(result)
+	}
+
+	commitCount, err := strconv.Atoi(strings.TrimSpace(runTestGit(t, pagesDir, "rev-list", "--count", "HEAD")))
+	if err != nil {
+		t.Fatalf("invalid commit count: %v", err)
+	}
+	if commitCount != saves {
+		t.Errorf("commit count = %d, want %d", commitCount, saves)
+	}
+	if status := runTestGit(t, pagesDir, "status", "--porcelain"); status != "" {
+		t.Errorf("repository has uncommitted changes:\n%s", status)
+	}
+}
+
+func runTestGit(t *testing.T, repository string, args ...string) string {
+	t.Helper()
+	commandArgs := append([]string{"-C", repository}, args...)
+	output, err := exec.Command("git", commandArgs...).CombinedOutput()
+	if err != nil {
+		t.Fatalf("git %s failed: %v\n%s", strings.Join(args, " "), err, output)
+	}
+	return string(output)
 }
