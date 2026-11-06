@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"crypto/subtle"
 	"encoding/base64"
+	"errors"
 	"flag"
 	"fmt"
 	"html/template"
@@ -183,43 +184,51 @@ func (page *MWXSPage) isHead() bool {
 }
 
 // git command to add page
-func (page *MWXSPage) cmdGitAdd() *MWXSPage {
+func (page *MWXSPage) cmdGitAdd() error {
 	log.Printf("exec: git add %s\n", page.File)
-	runGitCmd(exec.Command("git", "add", page.File))
-	return page
+	_, err := runGitCmd(exec.Command("git", "add", page.File))
+	return err
 }
 
 // git command to commit page with log message
-func (page *MWXSPage) cmdGitCommit(msg string, author string) *MWXSPage {
+func (page *MWXSPage) cmdGitCommit(msg string, author string) error {
+	var command *exec.Cmd
 	if author != "" {
 		log.Printf("exec: git commit -m '%s' --author...\n", page.File)
-		runGitCmd(exec.Command("git", "commit", "-m", msg, fmt.Sprintf("--author='%s <mwikixs@localhost>'", author)))
+		command = exec.Command("git", "commit", "-m", msg, fmt.Sprintf("--author='%s <mwikixs@localhost>'", author))
 	} else {
 		log.Printf("exec: git commit -m '%s'\n", page.File)
-		runGitCmd(exec.Command("git", "commit", "-m", msg))
+		command = exec.Command("git", "commit", "-m", msg)
 	}
-	return page
+	_, err := runGitCmd(command)
+	return err
 }
 
 // git command to fetch page revision
-func (page *MWXSPage) cmdGitShow() *MWXSPage {
+func (page *MWXSPage) cmdGitShow() error {
 	log.Printf("exec: git show %s\n", page.Revision+":"+page.File)
-	buf := runGitCmd(exec.Command("git", "show", page.Revision+":"+page.File))
+	buf, err := runGitCmd(exec.Command("git", "show", page.Revision+":"+page.File))
+	if err != nil {
+		return err
+	}
 	page.Bytes = buf.Bytes()
-	return page
+	return nil
 }
 
 // git command to fetch page commit log
-func (page *MWXSPage) cmdGitLog() *MWXSPage {
+func (page *MWXSPage) cmdGitLog() error {
 	log.Printf("exec: git log ... %s\n", page.File)
-	buf := runGitCmd(exec.Command("git", "log", "--pretty=format:%h %ad %s", "--date=relative", "-n",
+	buf, err := runGitCmd(exec.Command("git", "log", "--pretty=format:%h %ad %s", "--date=relative", "-n",
 		gitLogLimit, page.File))
-	var err error
+	if err != nil {
+		return err
+	}
+	var readErr error
 	b := bufio.NewReader(buf)
 	var bytes []byte
 	page.Log = make([]*MWXSGitLog, 0)
-	for err == nil {
-		bytes, err = b.ReadSlice('\n')
+	for readErr == nil {
+		bytes, readErr = b.ReadSlice('\n')
 		logLine := parseLog(bytes)
 		if logLine == nil {
 			continue
@@ -232,7 +241,7 @@ func (page *MWXSPage) cmdGitLog() *MWXSPage {
 		page.Revision = page.Log[0].Hash
 		page.Log[0].Link = false
 	}
-	return page
+	return nil
 }
 
 func GetPeerIP(r *http.Request) string {
@@ -274,24 +283,31 @@ func listDirectories(path string) []*MWXSDirectory {
 }
 
 // Soft reset to specific revision
-func (page *MWXSPage) cmdGitRevert() *MWXSPage {
+func (page *MWXSPage) cmdGitRevert() error {
 	log.Printf("info: reverting %s to revision %s", page.File, page.Revision)
 	log.Printf("exec: git checkout %s\n", page.Revision+":"+page.File)
-	runGitCmd(exec.Command("git", "checkout", page.Revision, "--", page.File))
-	return page
+	_, err := runGitCmd(exec.Command("git", "checkout", page.Revision, "--", page.File))
+	return err
 }
 
-// Run git command, will currently die on all errors
-func runGitCmd(cmd *exec.Cmd) *bytes.Buffer {
+// Run a Git command and preserve its diagnostics for the caller.
+func runGitCmd(cmd *exec.Cmd) (*bytes.Buffer, error) {
 	cmd.Dir = fmt.Sprintf("%s/%s/", cliops.httpdir, dirPages)
-	var out bytes.Buffer
-	cmd.Stdout = &out
-	runError := cmd.Run()
-	if runError != nil {
-		log.Printf("error: (%s) command failed with:\n\"%s\n\"", runError, out.String())
-		return bytes.NewBuffer([]byte{})
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		diagnostic := strings.TrimSpace(stderr.String())
+		if diagnostic == "" {
+			diagnostic = strings.TrimSpace(stdout.String())
+		}
+		if diagnostic != "" {
+			return &stdout, fmt.Errorf("%s failed: %w: %s", strings.Join(cmd.Args, " "), err, diagnostic)
+		}
+		return &stdout, fmt.Errorf("%s failed: %w", strings.Join(cmd.Args, " "), err)
 	}
-	return &out
+	return &stdout, nil
 }
 
 // Process page contents
@@ -344,6 +360,11 @@ func authorizeMutation(w http.ResponseWriter, r *http.Request) bool {
 	return true
 }
 
+func reportRepositoryError(w http.ResponseWriter, err error) {
+	log.Printf("error: repository operation failed: %v", err)
+	http.Error(w, "repository operation failed", http.StatusInternalServerError)
+}
+
 func wikiHandler(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path == "/favicon.ico" {
 		return
@@ -385,41 +406,85 @@ func wikiHandler(w http.ResponseWriter, r *http.Request) {
 			now := time.Now()
 			changelog = "by " + GetPeerIP(r) + " at " + now.Format(time.RFC3339)
 		}
-		func() {
+		err := func() error {
 			gitRepoMu.Lock()
 			defer gitRepoMu.Unlock()
 
 			bytes := []byte(content)
-			err := writeFile(bytes, filePath)
-			if err != nil {
-				log.Printf("error: cannot write to file %s: %v\n", filePath, err)
-				return
+			if err := writeFile(bytes, filePath); err != nil {
+				return fmt.Errorf("write page %s: %w", page.File, err)
 			}
 			// Wrote file, commit
 			page.Bytes = bytes
-			page.cmdGitAdd().cmdGitCommit(changelog, author).cmdGitLog()
+			if err := page.cmdGitAdd(); err != nil {
+				return err
+			}
+			if err := page.cmdGitCommit(changelog, author); err != nil {
+				return err
+			}
+			if err := page.cmdGitLog(); err != nil {
+				return err
+			}
 			page.toMarkdown()
+			return nil
 		}()
+		if err != nil {
+			reportRepositoryError(w, err)
+			return
+		}
 	} else if reset != "" {
-		func() {
+		err := func() error {
 			gitRepoMu.Lock()
 			defer gitRepoMu.Unlock()
 
 			// Reset to revision
 			page.Revision = reset
-			page.cmdGitRevert().cmdGitCommit("reverted to: "+page.Revision, author)
+			if err := page.cmdGitRevert(); err != nil {
+				return err
+			}
+			if err := page.cmdGitCommit("reverted to: "+page.Revision, author); err != nil {
+				return err
+			}
 			page.Revision = ""
-			page.cmdGitShow().cmdGitLog().toMarkdown()
+			if err := page.cmdGitShow(); err != nil {
+				return err
+			}
+			if err := page.cmdGitLog(); err != nil {
+				return err
+			}
+			page.toMarkdown()
+			return nil
 		}()
+		if err != nil {
+			reportRepositoryError(w, err)
+			return
+		}
 	} else {
-		func() {
+		err := func() error {
 			gitRepoMu.RLock()
 			defer gitRepoMu.RUnlock()
 
 			// Show specific revision
 			page.Revision = revision
-			page.cmdGitShow().cmdGitLog()
+			if revision == "" {
+				if _, err := os.Stat(filePath); errors.Is(err, os.ErrNotExist) {
+					return nil
+				} else if err != nil {
+					return fmt.Errorf("stat page %s: %w", page.File, err)
+				}
+			}
+			if err := page.cmdGitShow(); err != nil {
+				return err
+			}
+			if err := page.cmdGitLog(); err != nil {
+				return err
+			}
+			return nil
 		}()
+		if err != nil {
+			reportRepositoryError(w, err)
+			return
+		}
 		if edit == "true" || len(page.Bytes) == 0 {
 			page.Content = string(page.Bytes)
 			page.Template = cliops.tpldir + "/edit.tpl"
