@@ -246,6 +246,66 @@ func TestConcurrentSavesCreateSeparateCommits(t *testing.T) {
 	}
 }
 
+func TestRunGitCmdReturnsStderr(t *testing.T) {
+	httpDir := t.TempDir()
+	pagesDir := filepath.Join(httpDir, dirPages)
+	if err := os.MkdirAll(pagesDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	runTestGit(t, pagesDir, "init", "-q")
+
+	previousHTTPDir := cliops.httpdir
+	cliops.httpdir = httpDir
+	t.Cleanup(func() { cliops.httpdir = previousHTTPDir })
+
+	_, err := runGitCmd(exec.Command("git", "rev-parse", "--verify", "missing-ref"))
+	if err == nil {
+		t.Fatal("runGitCmd() error = nil, want Git failure")
+	}
+	if !strings.Contains(err.Error(), "fatal:") {
+		t.Fatalf("runGitCmd() error does not include stderr: %v", err)
+	}
+}
+
+func TestSaveReportsGitFailure(t *testing.T) {
+	httpDir := t.TempDir()
+	pagesDir := filepath.Join(httpDir, dirPages)
+	if err := os.MkdirAll(pagesDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	runTestGit(t, pagesDir, "init", "-q")
+	runTestGit(t, pagesDir, "config", "user.name", "MdWikiXS Test")
+	runTestGit(t, pagesDir, "config", "user.email", "mdwikixs@example.test")
+	if err := os.WriteFile(filepath.Join(pagesDir, ".git", "index.lock"), nil, 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	previousHTTPDir := cliops.httpdir
+	cliops.httpdir = httpDir
+	t.Cleanup(func() { cliops.httpdir = previousHTTPDir })
+
+	form := url.Values{
+		"content":    []string{"content that cannot be staged"},
+		"save":       []string{"true"},
+		"msg":        []string{"forced failure"},
+		"csrf_token": []string{csrfToken},
+	}
+	request := httptest.NewRequest(http.MethodPost, "/failed-save", strings.NewReader(form.Encode()))
+	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	response := httptest.NewRecorder()
+
+	wikiHandler(response, request)
+
+	if response.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want %d", response.Code, http.StatusInternalServerError)
+	}
+	if body := response.Body.String(); !strings.Contains(body, "repository operation failed") {
+		t.Errorf("response does not report repository failure: %q", body)
+	} else if strings.Contains(body, "index.lock") {
+		t.Errorf("response leaks internal Git diagnostic: %q", body)
+	}
+}
+
 func runTestGit(t *testing.T, repository string, args ...string) string {
 	t.Helper()
 	commandArgs := append([]string{"-C", repository}, args...)
