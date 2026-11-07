@@ -572,24 +572,148 @@ func initSiteDir() int {
 }
 
 func updateSiteDir() int {
-	shellCmds := "git clone --depth 1 https://github.com/miconda/mdwikixs _tmp_mdwikixs_git;" +
-		"rm -rf ./templates;" +
-		"rm -rf ./web/assets;" +
-		"mv ./_tmp_mdwikixs_git/templates .;" +
-		"mv ./_tmp_mdwikixs_git/web/assets ./web/;" +
-		"rm -rf ./_tmp_mdwikixs_git;"
-
 	log.Printf("starting site directory update...\n")
-	cmd := exec.Command("sh", "-c", shellCmds)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	err := cmd.Run()
-	if err != nil {
-		log.Print("error: ", err)
+	if err := updateSiteDirAt(".", cloneSiteRepository, os.Rename); err != nil {
+		log.Printf("error: site directory update failed: %v", err)
 		return -1
 	}
 
 	return 0
+}
+
+type siteCloneFunc func(destination string) error
+type renameFunc func(oldPath, newPath string) error
+
+func cloneSiteRepository(destination string) error {
+	cmd := exec.Command("git", "clone", "--depth", "1", "https://github.com/miconda/mdwikixs", destination)
+	cmd.Stdout = os.Stdout
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		if diagnostic := strings.TrimSpace(stderr.String()); diagnostic != "" {
+			return fmt.Errorf("git clone failed: %w: %s", err, diagnostic)
+		}
+		return fmt.Errorf("git clone failed: %w", err)
+	}
+	return nil
+}
+
+func updateSiteDirAt(root string, clone siteCloneFunc, rename renameFunc) error {
+	root, err := filepath.Abs(root)
+	if err != nil {
+		return fmt.Errorf("resolve site directory: %w", err)
+	}
+	stagingDir, err := os.MkdirTemp(root, ".mdwikixs-update-")
+	if err != nil {
+		return fmt.Errorf("create update staging directory: %w", err)
+	}
+	cleanupStaging := true
+	defer func() {
+		if cleanupStaging {
+			if err := os.RemoveAll(stagingDir); err != nil {
+				log.Printf("error: cannot remove update staging directory %s: %v", stagingDir, err)
+			}
+		}
+	}()
+
+	checkoutDir := filepath.Join(stagingDir, "checkout")
+	if err := clone(checkoutDir); err != nil {
+		return err
+	}
+
+	replacements := []siteReplacement{
+		{
+			source: filepath.Join(checkoutDir, "templates"),
+			target: filepath.Join(root, "templates"),
+			backup: filepath.Join(stagingDir, "backup-templates"),
+		},
+		{
+			source: filepath.Join(checkoutDir, "web", "assets"),
+			target: filepath.Join(root, "web", "assets"),
+			backup: filepath.Join(stagingDir, "backup-assets"),
+		},
+	}
+
+	for _, replacement := range replacements {
+		if err := requireDirectory(replacement.source); err != nil {
+			return fmt.Errorf("invalid downloaded site: %w", err)
+		}
+		if err := requireDirectory(replacement.target); err != nil {
+			return fmt.Errorf("invalid existing site: %w", err)
+		}
+	}
+
+	canCleanup, err := replaceSiteDirectories(replacements, rename)
+	if !canCleanup {
+		cleanupStaging = false
+		return fmt.Errorf("%w; recovery files retained in %s", err, stagingDir)
+	}
+	return err
+}
+
+type siteReplacement struct {
+	source    string
+	target    string
+	backup    string
+	backedUp  bool
+	installed bool
+}
+
+func requireDirectory(directory string) error {
+	info, err := os.Lstat(directory)
+	if err != nil {
+		return fmt.Errorf("access directory %s: %w", directory, err)
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("%s is not a directory", directory)
+	}
+	return nil
+}
+
+func replaceSiteDirectories(replacements []siteReplacement, rename renameFunc) (bool, error) {
+	rollback := func(last int) error {
+		var rollbackErrors []error
+		for i := last; i >= 0; i-- {
+			replacement := &replacements[i]
+			if replacement.installed {
+				if err := os.RemoveAll(replacement.target); err != nil {
+					rollbackErrors = append(rollbackErrors, fmt.Errorf("remove replacement %s: %w", replacement.target, err))
+					continue
+				}
+				replacement.installed = false
+			}
+			if replacement.backedUp {
+				if err := rename(replacement.backup, replacement.target); err != nil {
+					rollbackErrors = append(rollbackErrors, fmt.Errorf("restore backup %s: %w", replacement.target, err))
+					continue
+				}
+				replacement.backedUp = false
+			}
+		}
+		return errors.Join(rollbackErrors...)
+	}
+
+	for i := range replacements {
+		replacement := &replacements[i]
+		if err := rename(replacement.target, replacement.backup); err != nil {
+			operationErr := fmt.Errorf("back up %s: %w", replacement.target, err)
+			if rollbackErr := rollback(i - 1); rollbackErr != nil {
+				return false, errors.Join(operationErr, fmt.Errorf("rollback failed: %w", rollbackErr))
+			}
+			return true, operationErr
+		}
+		replacement.backedUp = true
+		if err := rename(replacement.source, replacement.target); err != nil {
+			operationErr := fmt.Errorf("install %s: %w", replacement.target, err)
+			if rollbackErr := rollback(i); rollbackErr != nil {
+				return false, errors.Join(operationErr, fmt.Errorf("rollback failed: %w", rollbackErr))
+			}
+			return true, operationErr
+		}
+		replacement.installed = true
+	}
+
+	return true, nil
 }
 
 func printCLIOptions() {
