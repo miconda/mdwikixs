@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -303,6 +304,125 @@ func TestSaveReportsGitFailure(t *testing.T) {
 		t.Errorf("response does not report repository failure: %q", body)
 	} else if strings.Contains(body, "index.lock") {
 		t.Errorf("response leaks internal Git diagnostic: %q", body)
+	}
+}
+
+func TestSiteUpdateCloneFailurePreservesExistingFiles(t *testing.T) {
+	root := t.TempDir()
+	if err := writeTestSiteVersion(root, "old"); err != nil {
+		t.Fatal(err)
+	}
+
+	err := updateSiteDirAt(root, func(string) error {
+		return errors.New("download failed")
+	}, os.Rename)
+	if err == nil {
+		t.Fatal("updateSiteDirAt() error = nil, want clone failure")
+	}
+
+	assertTestSiteVersion(t, root, "old")
+	assertNoUpdateStagingDirectories(t, root)
+}
+
+func TestSiteUpdateInvalidDownloadPreservesExistingFiles(t *testing.T) {
+	root := t.TempDir()
+	if err := writeTestSiteVersion(root, "old"); err != nil {
+		t.Fatal(err)
+	}
+
+	err := updateSiteDirAt(root, func(destination string) error {
+		return os.MkdirAll(filepath.Join(destination, "templates"), 0755)
+	}, os.Rename)
+	if err == nil {
+		t.Fatal("updateSiteDirAt() error = nil, want validation failure")
+	}
+
+	assertTestSiteVersion(t, root, "old")
+	assertNoUpdateStagingDirectories(t, root)
+}
+
+func TestSiteUpdateSwapFailureRollsBack(t *testing.T) {
+	root := t.TempDir()
+	if err := writeTestSiteVersion(root, "old"); err != nil {
+		t.Fatal(err)
+	}
+
+	failed := false
+	rename := func(oldPath, newPath string) error {
+		isStagedAssets := strings.Contains(oldPath, filepath.Join("checkout", "web", "assets"))
+		if !failed && isStagedAssets && newPath == filepath.Join(root, "web", "assets") {
+			failed = true
+			return errors.New("forced asset swap failure")
+		}
+		return os.Rename(oldPath, newPath)
+	}
+	err := updateSiteDirAt(root, func(destination string) error {
+		return writeTestSiteVersion(destination, "new")
+	}, rename)
+	if err == nil {
+		t.Fatal("updateSiteDirAt() error = nil, want swap failure")
+	}
+
+	assertTestSiteVersion(t, root, "old")
+	assertNoUpdateStagingDirectories(t, root)
+}
+
+func TestSiteUpdateReplacesValidatedDirectories(t *testing.T) {
+	root := t.TempDir()
+	if err := writeTestSiteVersion(root, "old"); err != nil {
+		t.Fatal(err)
+	}
+
+	err := updateSiteDirAt(root, func(destination string) error {
+		return writeTestSiteVersion(destination, "new")
+	}, os.Rename)
+	if err != nil {
+		t.Fatalf("updateSiteDirAt() error = %v", err)
+	}
+
+	assertTestSiteVersion(t, root, "new")
+	assertNoUpdateStagingDirectories(t, root)
+}
+
+func writeTestSiteVersion(root, version string) error {
+	for _, directory := range []string{
+		filepath.Join(root, "templates"),
+		filepath.Join(root, "web", "assets"),
+	} {
+		if err := os.MkdirAll(directory, 0755); err != nil {
+			return err
+		}
+		if err := os.WriteFile(filepath.Join(directory, "version.txt"), []byte(version), 0644); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func assertTestSiteVersion(t *testing.T, root, want string) {
+	t.Helper()
+	for _, filename := range []string{
+		filepath.Join(root, "templates", "version.txt"),
+		filepath.Join(root, "web", "assets", "version.txt"),
+	} {
+		content, err := os.ReadFile(filename)
+		if err != nil {
+			t.Fatalf("read %s: %v", filename, err)
+		}
+		if got := string(content); got != want {
+			t.Errorf("%s = %q, want %q", filename, got, want)
+		}
+	}
+}
+
+func assertNoUpdateStagingDirectories(t *testing.T, root string) {
+	t.Helper()
+	matches, err := filepath.Glob(filepath.Join(root, ".mdwikixs-update-*"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(matches) != 0 {
+		t.Errorf("update staging directories were not removed: %v", matches)
 	}
 }
 
