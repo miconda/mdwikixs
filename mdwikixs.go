@@ -186,7 +186,7 @@ func (page *MWXSPage) isHead() bool {
 // git command to add page
 func (page *MWXSPage) cmdGitAdd() error {
 	log.Printf("exec: git add %s\n", page.File)
-	_, err := runGitCmd(exec.Command("git", "add", page.File))
+	_, err := runGitCmd(exec.Command("git", "add", "--", page.File))
 	return err
 }
 
@@ -219,7 +219,7 @@ func (page *MWXSPage) cmdGitShow() error {
 func (page *MWXSPage) cmdGitLog() error {
 	log.Printf("exec: git log ... %s\n", page.File)
 	buf, err := runGitCmd(exec.Command("git", "log", "--pretty=format:%h %ad %s", "--date=relative", "-n",
-		gitLogLimit, page.File))
+		gitLogLimit, "--", page.File))
 	if err != nil {
 		return err
 	}
