@@ -247,6 +247,52 @@ func TestConcurrentSavesCreateSeparateCommits(t *testing.T) {
 	}
 }
 
+func TestPageNameBeginningWithDash(t *testing.T) {
+	httpDir := t.TempDir()
+	pagesDir := filepath.Join(httpDir, dirPages)
+	if err := os.MkdirAll(pagesDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	runTestGit(t, pagesDir, "init", "-q")
+	runTestGit(t, pagesDir, "config", "user.name", "MdWikiXS Test")
+	runTestGit(t, pagesDir, "config", "user.email", "mdwikixs@example.test")
+
+	previousHTTPDir := cliops.httpdir
+	cliops.httpdir = httpDir
+	t.Cleanup(func() { cliops.httpdir = previousHTTPDir })
+
+	form := url.Values{
+		"content":    []string{"dash-prefixed page"},
+		"save":       []string{"true"},
+		"msg":        []string{"save dash-prefixed page"},
+		"csrf_token": []string{csrfToken},
+	}
+	request := httptest.NewRequest(http.MethodPost, "/-draft", strings.NewReader(form.Encode()))
+	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	response := httptest.NewRecorder()
+	wikiHandler(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("save status = %d, want %d: %s", response.Code, http.StatusOK, response.Body.String())
+	}
+	if tracked := strings.TrimSpace(runTestGit(t, pagesDir, "ls-files", "--", "-draft.md")); tracked != "-draft.md" {
+		t.Fatalf("tracked file = %q, want %q", tracked, "-draft.md")
+	}
+	if commits := strings.TrimSpace(runTestGit(t, pagesDir, "rev-list", "--count", "HEAD", "--", "-draft.md")); commits != "1" {
+		t.Fatalf("page commit count = %q, want 1", commits)
+	}
+
+	request = httptest.NewRequest(http.MethodGet, "/-draft", nil)
+	response = httptest.NewRecorder()
+	wikiHandler(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("read status = %d, want %d: %s", response.Code, http.StatusOK, response.Body.String())
+	}
+	if !strings.Contains(response.Body.String(), "dash-prefixed page") {
+		t.Fatalf("read response does not contain page content: %s", response.Body.String())
+	}
+}
+
 func TestRunGitCmdReturnsStderr(t *testing.T) {
 	httpDir := t.TempDir()
 	pagesDir := filepath.Join(httpDir, dirPages)
