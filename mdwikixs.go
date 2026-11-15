@@ -61,10 +61,17 @@ var cliops = CLIOptions{
 }
 
 const (
-	dirPages    = "pages"
-	dirPublic   = "public"
-	dirAssets   = "assets"
-	gitLogLimit = "5"
+	dirPages           = "pages"
+	dirPublic          = "public"
+	dirAssets          = "assets"
+	gitLogLimit        = "5"
+	maxRequestBodySize = 2 << 20 // 2 MiB, including form encoding overhead.
+	maxHeaderSize      = 64 << 10
+
+	serverReadHeaderTimeout = 5 * time.Second
+	serverReadTimeout       = 15 * time.Second
+	serverWriteTimeout      = 30 * time.Second
+	serverIdleTimeout       = 60 * time.Second
 
 	markdownExtensions = blackfriday.EXTENSION_NO_INTRA_EMPHASIS |
 		blackfriday.EXTENSION_TABLES |
@@ -365,8 +372,29 @@ func reportRepositoryError(w http.ResponseWriter, err error) {
 	http.Error(w, "repository operation failed", http.StatusInternalServerError)
 }
 
+func parseRequestForm(w http.ResponseWriter, r *http.Request) bool {
+	if r.ContentLength > maxRequestBodySize {
+		http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
+		return false
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodySize)
+	if err := r.ParseForm(); err != nil {
+		var sizeError *http.MaxBytesError
+		if errors.As(err, &sizeError) {
+			http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
+		} else {
+			http.Error(w, "invalid request form", http.StatusBadRequest)
+		}
+		return false
+	}
+	return true
+}
+
 func wikiHandler(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path == "/favicon.ico" {
+		return
+	}
+	if !parseRequestForm(w, r) {
 		return
 	}
 
@@ -801,7 +829,7 @@ func startHTTPServices() chan error {
 				log.Printf("staring HTTP service on: http://%s ...", cliops.httpsrv)
 			}
 
-			if err := http.ListenAndServe(cliops.httpsrv, nil); err != nil {
+			if err := newHTTPServer(cliops.httpsrv).ListenAndServe(); err != nil {
 				errchan <- err
 			}
 
@@ -824,13 +852,25 @@ func startHTTPServices() chan error {
 					log.Printf("HTTPS with domain: https://%s:%s ...", cliops.domain, dtoken[1])
 				}
 			}
-			if err := http.ListenAndServeTLS(cliops.httpssrv, cliops.httpspubkey, cliops.httpsprvkey, nil); err != nil {
+			if err := newHTTPServer(cliops.httpssrv).ListenAndServeTLS(cliops.httpspubkey, cliops.httpsprvkey); err != nil {
 				errchan <- err
 			}
 		}()
 	}
 
 	return errchan
+}
+
+func newHTTPServer(address string) *http.Server {
+	return &http.Server{
+		Addr:              address,
+		Handler:           http.DefaultServeMux,
+		ReadHeaderTimeout: serverReadHeaderTimeout,
+		ReadTimeout:       serverReadTimeout,
+		WriteTimeout:      serverWriteTimeout,
+		IdleTimeout:       serverIdleTimeout,
+		MaxHeaderBytes:    maxHeaderSize,
+	}
 }
 
 func main() {
