@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"html/template"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -14,6 +15,14 @@ import (
 	"sync"
 	"testing"
 )
+
+func TestMain(m *testing.M) {
+	if err := loadSiteTemplates("templates"); err != nil {
+		fmt.Fprintf(os.Stderr, "load test templates: %v\n", err)
+		os.Exit(1)
+	}
+	os.Exit(m.Run())
+}
 
 func TestAuthorizeMutation(t *testing.T) {
 	tests := []struct {
@@ -150,6 +159,67 @@ func TestHTTPServerLimits(t *testing.T) {
 	if server.MaxHeaderBytes != maxHeaderSize {
 		t.Errorf("MaxHeaderBytes = %d, want %d", server.MaxHeaderBytes, maxHeaderSize)
 	}
+}
+
+func TestParseSiteTemplatesRejectsMalformedTemplate(t *testing.T) {
+	templateDir := copyTestTemplates(t)
+	if err := os.WriteFile(filepath.Join(templateDir, "page.tpl"), []byte(`{{define "page"}}{{`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := parseSiteTemplates(templateDir); err == nil {
+		t.Fatal("parseSiteTemplates() error = nil, want parse failure")
+	}
+}
+
+func TestParseSiteTemplatesRequiresDefinitions(t *testing.T) {
+	templateDir := copyTestTemplates(t)
+	if err := os.WriteFile(filepath.Join(templateDir, "page.tpl"), []byte("plain text"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := parseSiteTemplates(templateDir); err == nil {
+		t.Fatal("parseSiteTemplates() error = nil, want missing definition failure")
+	}
+}
+
+func TestRenderTemplateDiscardsPartialOutputOnFailure(t *testing.T) {
+	templates := template.Must(template.New("wiki").Parse(`
+{{define "header"}}partial output{{end}}
+{{define "page"}}{{.MissingField}}{{end}}
+{{define "footer"}}footer{{end}}
+`))
+
+	rendered, err := renderWithTemplates(templates, &MWXSPage{Markdown: template.HTML("content")})
+	if err == nil {
+		t.Fatal("renderWithTemplates() error = nil, want execution failure")
+	}
+	if len(rendered) != 0 {
+		t.Fatalf("renderWithTemplates() returned partial output: %q", rendered)
+	}
+}
+
+func copyTestTemplates(t *testing.T) string {
+	t.Helper()
+	destination := t.TempDir()
+	for _, name := range []string{
+		"header.tpl",
+		"footer.tpl",
+		"actions.tpl",
+		"revision.tpl",
+		"revisions.tpl",
+		"page.tpl",
+		"edit.tpl",
+	} {
+		content, err := os.ReadFile(filepath.Join("templates", name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(destination, name), content, 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return destination
 }
 
 func TestMarkdownRenderingRejectsXSS(t *testing.T) {
