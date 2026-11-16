@@ -351,6 +351,11 @@ var csrfToken = newCSRFToken()
 // request's staged changes. Readers wait until that transaction is complete.
 var gitRepoMu sync.RWMutex
 
+var (
+	siteTemplatesMu sync.RWMutex
+	siteTemplates   *template.Template
+)
+
 func authorizeMutation(w http.ResponseWriter, r *http.Request) bool {
 	if r.Method != http.MethodPost {
 		w.Header().Set("Allow", http.MethodPost)
@@ -515,12 +520,21 @@ func wikiHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		if edit == "true" || len(page.Bytes) == 0 {
 			page.Content = string(page.Bytes)
-			page.Template = cliops.tpldir + "/edit.tpl"
+			page.Template = "edit.tpl"
 		} else {
 			page.toMarkdown()
 		}
 	}
-	renderTemplate(w, page)
+	rendered, err := renderTemplate(page)
+	if err != nil {
+		log.Printf("error: could not render template: %v", err)
+		http.Error(w, "template rendering failed", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if _, err := w.Write(rendered); err != nil {
+		log.Printf("error: could not write response: %v", err)
+	}
 }
 
 func (mhandler *MWXHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -536,43 +550,82 @@ func writeFile(bytes []byte, entry string) error {
 	return err
 }
 
-func renderTemplate(w http.ResponseWriter, page *MWXSPage) {
+func parseSiteTemplates(templateDir string) (*template.Template, error) {
+	files := []string{
+		filepath.Join(templateDir, "header.tpl"),
+		filepath.Join(templateDir, "footer.tpl"),
+		filepath.Join(templateDir, "actions.tpl"),
+		filepath.Join(templateDir, "revision.tpl"),
+		filepath.Join(templateDir, "revisions.tpl"),
+		filepath.Join(templateDir, "page.tpl"),
+		filepath.Join(templateDir, "edit.tpl"),
+	}
+	templates, err := template.New("wiki").ParseFiles(files...)
+	if err != nil {
+		return nil, fmt.Errorf("parse templates: %w", err)
+	}
+	for _, name := range []string{"header", "footer", "actions", "revision", "revisions", "page", "edit.tpl"} {
+		if templates.Lookup(name) == nil {
+			return nil, fmt.Errorf("required template %q is not defined", name)
+		}
+	}
+	return templates, nil
+}
 
-	t := template.New("wiki")
-	var err error
+func loadSiteTemplates(templateDir string) error {
+	templates, err := parseSiteTemplates(templateDir)
+	if err != nil {
+		return err
+	}
+	siteTemplatesMu.Lock()
+	siteTemplates = templates
+	siteTemplatesMu.Unlock()
+	return nil
+}
+
+func renderTemplate(page *MWXSPage) ([]byte, error) {
+	siteTemplatesMu.RLock()
+	templates := siteTemplates
+	siteTemplatesMu.RUnlock()
+	if templates == nil {
+		return nil, errors.New("templates are not loaded")
+	}
+	return renderWithTemplates(templates, page)
+}
+
+func renderWithTemplates(templates *template.Template, page *MWXSPage) ([]byte, error) {
+	var output bytes.Buffer
+	execute := func(name string) error {
+		if err := templates.ExecuteTemplate(&output, name, page); err != nil {
+			return fmt.Errorf("execute template %q: %w", name, err)
+		}
+		return nil
+	}
 
 	if page.Template != "" {
-		t, err = template.ParseFiles(page.Template)
-		if err != nil {
-			log.Print("error: could not parse template: ", err)
+		if err := execute("edit.tpl"); err != nil {
+			return nil, err
 		}
-	} else if page.Markdown != "" {
-		tpl := "{{ template \"header\" . }}"
-		if page.isHead() {
-			tpl += "{{ template \"actions\" . }}"
-		} else if page.Revision != "" {
-			tpl += "{{ template \"revision\" . }}"
-		}
-		// Add page
-		tpl += "{{ template \"page\" . }}"
-		// Show revisions
-		if page.Revisions {
-			tpl += "{{ template \"revisions\" . }}"
-		}
-
-		// Footer
-		tpl += "{{ template \"footer\" . }}"
-		t.Parse(tpl)
+		return output.Bytes(), nil
 	}
 
-	// Include the rest
-	t.ParseFiles(cliops.tpldir+"/header.tpl", cliops.tpldir+"/footer.tpl",
-		cliops.tpldir+"/actions.tpl", cliops.tpldir+"/revision.tpl",
-		cliops.tpldir+"/revisions.tpl", cliops.tpldir+"/page.tpl")
-	err = t.Execute(w, page)
-	if err != nil {
-		log.Print("error: could not execute template: ", err)
+	names := []string{"header"}
+	if page.isHead() {
+		names = append(names, "actions")
+	} else if page.Revision != "" {
+		names = append(names, "revision")
 	}
+	names = append(names, "page")
+	if page.Revisions {
+		names = append(names, "revisions")
+	}
+	names = append(names, "footer")
+	for _, name := range names {
+		if err := execute(name); err != nil {
+			return nil, err
+		}
+	}
+	return output.Bytes(), nil
 }
 
 func initSiteDir() int {
@@ -908,6 +961,10 @@ func main() {
 	}
 	if _, err := os.Stat(cliops.tpldir); os.IsNotExist(err) {
 		log.Printf(cliops.tpldir + " folder cannot be found\n")
+		os.Exit(1)
+	}
+	if err := loadSiteTemplates(cliops.tpldir); err != nil {
+		log.Printf("templates cannot be loaded: %v\n", err)
 		os.Exit(1)
 	}
 	if _, err := os.Stat(cliops.httpdir); os.IsNotExist(err) {
