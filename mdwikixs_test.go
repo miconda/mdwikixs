@@ -116,6 +116,42 @@ func TestWikiHandlerRejectsUnauthorizedMutations(t *testing.T) {
 	}
 }
 
+func TestWikiHandlerRejectsOversizedRequestBody(t *testing.T) {
+	body := "content=" + strings.Repeat("x", maxRequestBodySize)
+	request := httptest.NewRequest(http.MethodPost, "/page", strings.NewReader(body))
+	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	request.ContentLength = -1 // Exercise the streaming limit, not only the length precheck.
+	response := httptest.NewRecorder()
+
+	wikiHandler(response, request)
+
+	if response.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("status = %d, want %d", response.Code, http.StatusRequestEntityTooLarge)
+	}
+	if !strings.Contains(response.Body.String(), "request body too large") {
+		t.Fatalf("response does not explain size limit: %q", response.Body.String())
+	}
+}
+
+func TestHTTPServerLimits(t *testing.T) {
+	server := newHTTPServer("127.0.0.1:0")
+	if server.ReadHeaderTimeout != serverReadHeaderTimeout {
+		t.Errorf("ReadHeaderTimeout = %v, want %v", server.ReadHeaderTimeout, serverReadHeaderTimeout)
+	}
+	if server.ReadTimeout != serverReadTimeout {
+		t.Errorf("ReadTimeout = %v, want %v", server.ReadTimeout, serverReadTimeout)
+	}
+	if server.WriteTimeout != serverWriteTimeout {
+		t.Errorf("WriteTimeout = %v, want %v", server.WriteTimeout, serverWriteTimeout)
+	}
+	if server.IdleTimeout != serverIdleTimeout {
+		t.Errorf("IdleTimeout = %v, want %v", server.IdleTimeout, serverIdleTimeout)
+	}
+	if server.MaxHeaderBytes != maxHeaderSize {
+		t.Errorf("MaxHeaderBytes = %d, want %d", server.MaxHeaderBytes, maxHeaderSize)
+	}
+}
+
 func TestMarkdownRenderingRejectsXSS(t *testing.T) {
 	tests := []struct {
 		name     string
