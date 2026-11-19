@@ -399,6 +399,53 @@ func TestPageNameBeginningWithDash(t *testing.T) {
 	}
 }
 
+func TestParseGitLogMachineFormat(t *testing.T) {
+	output := []byte("abc1234\x001700000000\x00fix: (issue #42) — 2 days ago\n" +
+		"123456789abc\x000\x00message with   repeated spaces")
+
+	logs, err := parseGitLog(output)
+	if err != nil {
+		t.Fatalf("parseGitLog() error = %v", err)
+	}
+	if len(logs) != 2 {
+		t.Fatalf("len(logs) = %d, want 2", len(logs))
+	}
+	if logs[0].Hash != "abc1234" {
+		t.Errorf("first hash = %q, want %q", logs[0].Hash, "abc1234")
+	}
+	if logs[0].Time != "2023-11-14T22:13:20Z" {
+		t.Errorf("first time = %q, want RFC3339 UTC timestamp", logs[0].Time)
+	}
+	if logs[0].Message != "fix: (issue #42) — 2 days ago" {
+		t.Errorf("first message = %q", logs[0].Message)
+	}
+	if logs[1].Hash != "123456789abc" {
+		t.Errorf("second hash = %q, want variable-length hash", logs[1].Hash)
+	}
+	if logs[1].Message != "message with   repeated spaces" {
+		t.Errorf("second message = %q", logs[1].Message)
+	}
+}
+
+func TestParseGitLogRejectsMalformedRecords(t *testing.T) {
+	tests := []struct {
+		name   string
+		output string
+	}{
+		{name: "missing fields", output: "abc1234 2 days ago message"},
+		{name: "empty hash", output: "\x001700000000\x00message"},
+		{name: "invalid timestamp", output: "abc1234\x00yesterday\x00message"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := parseGitLog([]byte(tt.output)); err == nil {
+				t.Fatal("parseGitLog() error = nil, want malformed record error")
+			}
+		})
+	}
+}
+
 func TestRunGitCmdReturnsStderr(t *testing.T) {
 	httpDir := t.TempDir()
 	pagesDir := filepath.Join(httpDir, dirPages)
