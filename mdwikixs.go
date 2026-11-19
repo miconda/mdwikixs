@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"bytes"
 	"crypto/rand"
 	"crypto/subtle"
@@ -17,7 +16,6 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -225,24 +223,19 @@ func (page *MWXSPage) cmdGitShow() error {
 // git command to fetch page commit log
 func (page *MWXSPage) cmdGitLog() error {
 	log.Printf("exec: git log ... %s\n", page.File)
-	buf, err := runGitCmd(exec.Command("git", "log", "--pretty=format:%h %ad %s", "--date=relative", "-n",
+	buf, err := runGitCmd(exec.Command("git", "log", "--format=%H%x00%ct%x00%s", "-n",
 		gitLogLimit, "--", page.File))
 	if err != nil {
 		return err
 	}
-	var readErr error
-	b := bufio.NewReader(buf)
-	var bytes []byte
-	page.Log = make([]*MWXSGitLog, 0)
-	for readErr == nil {
-		bytes, readErr = b.ReadSlice('\n')
-		logLine := parseLog(bytes)
-		if logLine == nil {
-			continue
-		} else if logLine.Hash != page.Revision {
+	page.Log, err = parseGitLog(buf.Bytes())
+	if err != nil {
+		return err
+	}
+	for _, logLine := range page.Log {
+		if logLine.Hash != page.Revision {
 			logLine.Link = true
 		}
-		page.Log = append(page.Log, logLine)
 	}
 	if page.Revision == "" && len(page.Log) > 0 {
 		page.Revision = page.Log[0].Hash
@@ -262,14 +255,29 @@ func GetPeerIP(r *http.Request) string {
 	return PeerIPAddr
 }
 
-func parseLog(bytes []byte) *MWXSGitLog {
-	line := string(bytes)
-	re := regexp.MustCompile(`(.{0,7}) (\d+ \w+ ago) (.*)`)
-	matches := re.FindStringSubmatch(line)
-	if len(matches) == 4 {
-		return &MWXSGitLog{Hash: matches[1], Time: matches[2], Message: matches[3]}
+func parseGitLog(output []byte) ([]*MWXSGitLog, error) {
+	if len(output) == 0 {
+		return make([]*MWXSGitLog, 0), nil
 	}
-	return nil
+
+	records := bytes.Split(bytes.TrimSuffix(output, []byte{'\n'}), []byte{'\n'})
+	logs := make([]*MWXSGitLog, 0, len(records))
+	for index, record := range records {
+		fields := bytes.SplitN(record, []byte{0}, 3)
+		if len(fields) != 3 || len(fields[0]) == 0 {
+			return nil, fmt.Errorf("parse git log record %d: invalid field count", index+1)
+		}
+		unixSeconds, err := strconv.ParseInt(string(fields[1]), 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("parse git log record %d timestamp: %w", index+1, err)
+		}
+		logs = append(logs, &MWXSGitLog{
+			Hash:    string(fields[0]),
+			Time:    time.Unix(unixSeconds, 0).UTC().Format(time.RFC3339),
+			Message: string(fields[2]),
+		})
+	}
+	return logs, nil
 }
 
 func listDirectories(path string) []*MWXSDirectory {
